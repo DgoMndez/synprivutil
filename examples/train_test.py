@@ -1,5 +1,6 @@
 import pandas as pd
-from privacy_utility_framework.privacy_utility_framework.utils.utils import dynamic_train_test_split
+
+from privacy_utility_framework.utils.utils import dynamic_train_test_split
 
 
 def train_test_example():
@@ -10,7 +11,7 @@ def train_test_example():
     folder = f"{orig}_datasets"
 
     # Load the original dataset from the specified path
-    data = pd.read_csv(f'../datasets/original/{orig}.csv', delimiter=',')
+    data = pd.read_csv(f"../datasets/original/{orig}.csv", delimiter=",")
     # Split the data into train and test sets using dynamic_train_test_split function
     train, test = dynamic_train_test_split(data)
 
@@ -19,5 +20,6 @@ def train_test_example():
     # Save the train and test datasets to CSV files
     train.to_csv(f"{folder}/train/{orig}.csv", index=False)
     test.to_csv(f"{folder}/test/{orig}.csv", index=False)
+
 
 # train_test_example()

@@ -1,8 +1,15 @@
 import pandas as pd
 from sdv.metadata import SingleTableMetadata
 
-from privacy_utility_framework.privacy_utility_framework.synthesizers.synthesizers import GaussianMixtureModel, \
-    GaussianCopulaModel, CTGANModel, CopulaGANModel, TVAEModel, RandomModel
+from privacy_utility_framework.synthesizers.synthesizers import (
+    CopulaGANModel,
+    CTGANModel,
+    GaussianCopulaModel,
+    GaussianMixtureModel,
+    RandomModel,
+    TVAEModel,
+)
+
 
 def syn_generation_example():
     # Define the original dataset name
@@ -19,15 +26,13 @@ def syn_generation_example():
     # Load the appropriate dataset based on the use_train flag
     if use_train:
         # Load the training dataset from the specified path
-        data = pd.read_csv(
-            f'../examples/{orig}_datasets/train/{orig}.csv',
-            delimiter=',')
+        data = pd.read_csv(f"../examples/{orig}_datasets/train/{orig}.csv", delimiter=",")
         # Adjust the folder path for synthetic data generation
         folder = f"{folder}/syn_on_train"
 
     else:
         # Load the original dataset if not using training data
-        data = pd.read_csv(f'../datasets/original/{orig}.csv', delimiter=',')
+        data = pd.read_csv(f"../datasets/original/{orig}.csv", delimiter=",")
 
     # Generate new synthetic data if the flag is set
     if generate_new_syn:
@@ -75,13 +80,14 @@ def syn_generation_example():
         # Save randomly generated samples to CSV
         random_vanilla_model.save_sample(f"{folder}/random_sample.csv", len(data))
 
+
 def load_model_example():
     # Load a previously saved CTGAN model from the specified path
-    ctgan_model = CTGANModel.load_model(
-        "../examples/insurance_datasets/ctgan_model.pkl")
+    ctgan_model = CTGANModel.load_model("../examples/insurance_datasets/ctgan_model.pkl")
     # Generate samples from the loaded CTGAN model
     samples_from_loaded_model = ctgan_model.sample(10)
     print(f"~~~~~Samples from loaded CTGAN Model~~~~~\n {samples_from_loaded_model}")
+
 
 # Execute the synthetic data generation example
 syn_generation_example()

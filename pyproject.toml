@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "privacy_utility_framework"
+version = "0.0.11"
+authors = [{name = "KS"}]
+description = "Privacy-utility framework from synprivutil"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+dependencies = [
+    "anonymeter==1.0.0",
+    "dython==0.7.8",
+    "matplotlib==3.9.2",
+    "numpy==1.26.4",
+    "pandas==2.2.2",
+    "POT==0.9.4",
+    "rdt==1.12.3",
+    "scikit-learn==1.5.1",
+    "scipy==1.13.0",
+    "sdv==1.15.0",
+    "seaborn==0.12.2",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+lint.select = ["E", "F", "I", "B", "UP"]
+lint.ignore = []
+exclude = [".venv", "venv", "build", "dist", ".git", "__pycache__"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
