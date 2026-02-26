@@ -75,10 +75,10 @@ def mutual_information_plot_example():
 def pairwise_plot_example():
     original_data = pd.read_csv("../datasets/original/diabetes.csv")
     synthetic_data = pd.read_csv("../datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
-    manager = DatasetManager(original_data, synthetic_data)
+    manager = DatasetManager.from_dataframes(original_data, synthetic_data)
 
     # Set the transformer and scaler for the datasets
-    manager.set_transformer()
+    manager.set_hypertransformer()
 
     # Transform and normalize the datasets
     manager.transform_datasets()
@@ -94,10 +94,10 @@ def plot_attributes_example():
     original_data = pd.read_csv("../datasets/original/diabetes.csv")
     synthetic_data = pd.read_csv("../datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
 
-    manager = DatasetManager(original_data, synthetic_data)
+    manager = DatasetManager.from_dataframes(original_data, synthetic_data)
 
     # Set the transformer and scaler for the datasets
-    manager.set_transformer()
+    manager.set_hypertransformer()
 
     # Transform and normalize the datasets
     manager.transform_datasets()

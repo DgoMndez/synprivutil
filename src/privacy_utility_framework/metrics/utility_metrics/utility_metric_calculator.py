@@ -89,10 +89,10 @@ class UtilityMetricCalculator(ABC):
             The name of the synthetic dataset.
         """
         # Initialize DatasetManager with original and synthetic data and their names
-        manager = DatasetManager(original, synthetic, original_name, synthetic_name)
+        manager = DatasetManager.from_dataframes(original, synthetic, original_name, synthetic_name)
 
         # Configure the transformer and scaler to apply transformations to datasets
-        manager.set_transformer()
+        manager.set_hypertransformer()
 
         # Perform transformation and normalization on both datasets
         manager.transform_datasets()

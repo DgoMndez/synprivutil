@@ -9,10 +9,10 @@ def dataset_example():
 
     synthetic_data = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6], "C": ["cat", "dog", "mouse"]})
     # Initialize the DatasetManager
-    manager = DatasetManager(original_data, synthetic_data)
+    manager = DatasetManager.from_dataframes(original_data, synthetic_data)
 
     # Set the transformer and scaler for the datasets
-    manager.set_transformer()
+    manager.set_hypertransformer()
 
     # Transform and normalize the datasets
     manager.transform_datasets()

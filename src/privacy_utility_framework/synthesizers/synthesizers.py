@@ -208,10 +208,10 @@ class GaussianMixtureModel(BaseModel):
             random_state (int): Seed for reproducibility.
         """
         dataset = Dataset(data)
-        dataset.set_transformer()
+        dataset.fit_hypertransformer()
         dataset.transform()
         self.transformed_data = dataset.transformed_data
-        self.transformer = dataset.transformer
+        self.transformer = dataset.hypertransformer
         optimal_n_components = self._select_n_components(self.transformed_data, random_state)
         self.model = GaussianMixture(n_components=optimal_n_components, random_state=random_state)
         self.model.fit(self.transformed_data)
