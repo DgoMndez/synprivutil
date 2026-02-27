@@ -4,6 +4,10 @@ import pandas as pd
 
 from privacy_utility_framework.dataset.dataset import DatasetManager
 
+# TODO 1: Add support for callable distance metrics on all distance-based privacy metrics.
+# TODO 2: Admit Datasets apart from DataFrames in the constructor (flexibility).
+# TODO 3: Implement CDF-based distance metrics.
+
 
 class PrivacyMetricCalculator(ABC):
     """
@@ -40,7 +44,7 @@ class PrivacyMetricCalculator(ABC):
         if not isinstance(synthetic, pd.DataFrame):
             raise TypeError("synthetic_data must be an instance of pandas Dataframe.")
         # Perform data transformation and normalization
-        self._transform_and_normalize(original, synthetic, original_name, synthetic_name)
+        self._transform(original, synthetic, original_name, synthetic_name)
         # Perform data validation to ensure compatibility between datasets
         self._validate_data()
 
@@ -54,7 +58,7 @@ class PrivacyMetricCalculator(ABC):
         float
             The calculated privacy metric score.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement the evaluate method.")
 
     def _validate_data(self):
         """
@@ -89,9 +93,10 @@ class PrivacyMetricCalculator(ABC):
             if self.original.data[col].dtype != self.synthetic.data[col].dtype:
                 raise ValueError(f"Data type mismatch in column '{col}'.")
 
-    def _transform_and_normalize(self, original, synthetic, original_name, synthetic_name):
+    def _transform(self, original, synthetic, original_name, synthetic_name):
         """
-        Transforms and normalizes both the original and synthetic datasets.
+        Transforms both the original and synthetic datasets, \
+            applying encoding or normalization for each column as needed.
 
         Parameters
         ----------

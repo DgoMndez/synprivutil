@@ -57,8 +57,8 @@ class DCRCalculator(PrivacyMetricCalculator):
                 record.
         """
         # Retrieve transformed and normalized data
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
 
         # Apply feature weights to both datasets
         weighted_original_data = original * self.weights

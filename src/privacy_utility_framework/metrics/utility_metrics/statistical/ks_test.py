@@ -51,8 +51,8 @@ class KSCalculator(UtilityMetricCalculator):
         - dict; a dictionary with feature names as keys and KS statistics and p-values as values.
         """
         # Retrieve transformed and normalized data from original and synthetic datasets
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
         ks_results = {}
 
         # Perform KS test for each feature in the dataset

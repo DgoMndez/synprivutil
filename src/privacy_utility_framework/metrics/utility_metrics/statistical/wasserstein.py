@@ -53,8 +53,8 @@ class WassersteinCalculator(UtilityMetricCalculator):
         - The computed Wasserstein distance based on the selected method.
         """
         # Retrieve transformed and normalized data from original and synthetic datasets
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
         if metric == WassersteinMethod.SINKHORN:
             # Parameters for Sinkhorn distance calculation
             numItermax = 1000  # Maximum number of iterations for convergence

@@ -48,8 +48,8 @@ class CorrelationCalculator(UtilityMetricCalculator):
         - syn_corr: pd.DataFrame; correlation matrix for the synthetic dataset.
         """
         # Retrieve transformed and normalized data from original and synthetic datasets
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
 
         # Calculate correlation matrices for the original and synthetic datasets
         orig_corr = original.corr(method=method.value)

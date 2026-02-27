@@ -4,12 +4,12 @@ from scipy.spatial import distance
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
-from privacy_utility_framework.metrics.privacy_metrics import (
-    PrivacyMetricCalculator,
+from .distance_privacy_metric_calculator import (
+    DistancePrivacyMetricCalculator,
 )
 
 
-class AdversarialAccuracyCalculator(PrivacyMetricCalculator):
+class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
     """
     Calculate nearest neighbors and adversarial accuracy metrics for original \
         and synthetic datasets.
@@ -19,7 +19,7 @@ class AdversarialAccuracyCalculator(PrivacyMetricCalculator):
         self,
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
-        distance_metric: str = "euclidean",
+        distance_metric: str | callable = "euclidean",
         original_name: str = None,
         synthetic_name: str = None,
     ):
@@ -33,6 +33,10 @@ class AdversarialAccuracyCalculator(PrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             distance_metric (str): The metric for calculating distances (default: 'euclidean').
         """
+        assert distance_metric is not None, (
+            "Parameter 'distance_metric' is required in AdversarialAccuracyCalculator."
+        )
+
         # Initialize the superclass with datasets and settings
         super().__init__(
             original,
@@ -41,15 +45,6 @@ class AdversarialAccuracyCalculator(PrivacyMetricCalculator):
             original_name=original_name,
             synthetic_name=synthetic_name,
         )
-
-        # Validate that distance_metric is set
-        if distance_metric is None:
-            raise ValueError(
-                "Parameter 'distance_metric' is required in AdversarialAccuracyCalculator."
-            )
-
-        # Define distance metric
-        self.distance_metric = distance_metric
 
     def evaluate(self):
         """
@@ -84,31 +79,28 @@ class AdversarialAccuracyCalculator(PrivacyMetricCalculator):
                - min_d_syn_syn: Minimum leave-one-out distance within synthetic samples.
         """
         # The transformed and normalized data is used for the NNAA
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
 
-        # Calculate distances from synthetic to original
-        d_syn_orig = distance.cdist(synthetic, original, metric=self.distance_metric)
-        min_d_syn_orig = np.min(d_syn_orig, axis=1)
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
 
-        # Calculate distances from original to synthetic
-        d_orig_syn = distance.cdist(original, synthetic, metric=self.distance_metric)
-        min_d_orig_syn = np.min(d_orig_syn, axis=1)
+        aux_list = [original, synthetic]
+        distances = np.zeros((2, 2))
 
-        # Calculate distances within original samples (leave-one-out)
-        d_orig_orig = distance.cdist(original, original, metric=self.distance_metric)
-        np.fill_diagonal(d_orig_orig, np.inf)  # Ignore self-distances
-        min_d_orig_orig = np.min(d_orig_orig, axis=1)
+        # Calculate pairwise distances between original and synthetic datasets
+        # i = 0 for original, i = 1 for synthetic
+        # d[i][j] will hold the minimum distances from dataset i to dataset j
 
-        # Calculate distances within synthetic samples (leave-one-out)
-        d_syn_syn = distance.cdist(synthetic, synthetic, metric=self.distance_metric)
-        np.fill_diagonal(d_syn_syn, np.inf)  # Ignore self-distances
-        min_d_syn_syn = np.min(d_syn_syn, axis=1)
+        for i in range(2):
+            for j in range(2):
+                d = distance.cdist(aux_list[i], aux_list[j], metric=self.distance_metric)
+                if i == j:
+                    np.fill_diagonal(d, np.inf)  # Ignore self-distances for same dataset
+                distances[i][j] = np.min(d, axis=1)
 
-        return min_d_syn_orig, min_d_orig_syn, min_d_orig_orig, min_d_syn_syn
+        return distances[1][0], distances[0][1], distances[0][0], distances[1][1]
 
 
-class AdversarialAccuracyCalculator_NN(PrivacyMetricCalculator):
+class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
     """
     Calculate nearest neighbors and adversarial accuracy metrics for original and synthetic \
         datasets using Nearest Neighbors (may be faster in some cases).
@@ -130,6 +122,9 @@ class AdversarialAccuracyCalculator_NN(PrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             distance_metric (str): Metric for distance calculation (default: 'euclidean').
         """
+        assert distance_metric is not None, (
+            "Parameter 'distance_metric' is required in AdversarialAccuracyCalculator_NN."
+        )
         super().__init__(
             original,
             synthetic,
@@ -137,15 +132,11 @@ class AdversarialAccuracyCalculator_NN(PrivacyMetricCalculator):
             original_name=original_name,
             synthetic_name=synthetic_name,
         )
-        if distance_metric is None:
-            raise ValueError(
-                "Parameter 'distance_metric' is required in AdversarialAccuracyCalculator."
-            )
-        # Define distance metric and data for calculation
-        self.distance_metric = distance_metric
+
+        # Define data for calculation
         self.data = {
-            "original": self.original.transformed_normalized_data,
-            "synthetic": self.synthetic.transformed_normalized_data,
+            "original": self.original.transformed_data,
+            "synthetic": self.synthetic.transformed_data,
         }
         self.dists = {}
 

@@ -59,8 +59,8 @@ class BasicStatsCalculator(UtilityMetricCalculator):
         - dict; a dictionary containing mean, median, and variance for each column in both datasets.
         """
         # Retrieve transformed and normalized data from original and synthetic datasets
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
         stats = {}
         for col in original.columns:
             # Compute statistics for the original and synthetic data

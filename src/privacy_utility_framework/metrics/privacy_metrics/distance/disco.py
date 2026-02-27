@@ -514,8 +514,8 @@ class DisclosureCalculator(PrivacyMetricCalculator):
 
     def evaluate(self) -> tuple[Any, Any]:
         repU, DiSCO = self._disclosure(
-            self.synthetic.transformed_normalized_data,
-            self.original.transformed_normalized_data,
+            self.synthetic.transformed_data,
+            self.original.transformed_data,
             self.keys,
             self.target,
         )

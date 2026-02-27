@@ -52,8 +52,8 @@ class NNDRCalculator(PrivacyMetricCalculator):
         """
 
         # Use transformed and normalized data for NNDR calculation
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
 
         # Compute distances from each synthetic record to all original records
         distances = distance.cdist(synthetic, original, metric=self.distance_metric)

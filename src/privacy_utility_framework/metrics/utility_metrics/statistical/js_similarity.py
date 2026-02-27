@@ -40,8 +40,8 @@ class JSCalculator(UtilityMetricCalculator):
         - dict; keys are feature names, and values are Jensen-Shannon similarity scores (0 to 1).
         """
         # Retrieve transformed and normalized data from original and synthetic datasets
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
 
         js_similarities = {}
         # Calculate JS similarity for each column in the dataset

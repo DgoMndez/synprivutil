@@ -61,8 +61,8 @@ class MICalculator(UtilityMetricCalculator):
             synthetic datasets.
         """
         # Retrieve transformed and normalized data from original and synthetic datasets
-        original = self.original.transformed_normalized_data
-        synthetic = self.synthetic.transformed_normalized_data
+        original = self.original.transformed_data
+        synthetic = self.synthetic.transformed_data
 
         # Calculate pairwise mutual information for the original and synthetic datasets
         private_mi = self.pairwise_attributes_mutual_information(original)

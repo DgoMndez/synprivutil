@@ -84,8 +84,8 @@ def pairwise_plot_example():
     manager.transform_datasets()
 
     plot_pairwise_relationships(
-        manager.original_dataset.transformed_normalized_data,
-        manager.synthetic_dataset.transformed_normalized_data,
+        manager.original_dataset.transformed_data,
+        manager.synthetic_dataset.transformed_data,
         "Pairwise Relationships: Original vs Synthetic Data",
     )
 
@@ -103,8 +103,8 @@ def plot_attributes_example():
     manager.transform_datasets()
 
     plot_original_vs_synthetic(
-        manager.original_dataset.transformed_normalized_data,
-        manager.synthetic_dataset.transformed_normalized_data,
+        manager.original_dataset.transformed_data,
+        manager.synthetic_dataset.transformed_data,
     )
 
 
