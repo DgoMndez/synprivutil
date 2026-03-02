@@ -1,96 +1,12 @@
 from copy import deepcopy
 from functools import lru_cache
 
-import numpy as np
 import pandas as pd
 import rdt.transformers
 from rdt import HyperTransformer
-from rdt.transformers import BaseTransformer, OneHotEncoder
-from sklearn.preprocessing import MinMaxScaler
+from rdt.transformers import OneHotEncoder
 
-
-class MinMaxScalerTransformer(BaseTransformer):
-    r"""
-    RDT-compatible wrapper for sklearn's MinMaxScaler.
-
-    This transformer scales numeric features to a fixed range [0, 1] using
-    sklearn's MinMaxScaler, wrapped in the RDT Transformer interface for
-    compatibility with HyperTransformer and other RDT pipelines.
-
-    Overrides protected methods (_fit, _transform, _reverse_transform) following
-    RDT's template method pattern, where the public methods (fit, transform, etc.)
-    in BaseTransformer handle common logic and invoke these protected hooks.
-
-    Attributes:
-        _scaler (MinMaxScaler): The underlying sklearn MinMaxScaler instance.
-    """
-
-    INPUT_SDTYPE = "numerical"
-    SUPPORTED_SDTYPES = ["numerical"]
-    OUTPUT_SDTYPES = {"value": "numerical"}
-
-    def __init__(self, feature_range=(0, 1), clip=True):
-        r"""
-        Initialize the MinMaxScalerTransformer.
-
-        Args:
-            feature_range (tuple): Target range for scaled features. Default is (0, 1).
-            clip (bool): Whether to clip transformed data to feature_range. Default is True.
-        """
-        super().__init__()
-        self._scaler = MinMaxScaler(feature_range=feature_range, clip=clip)
-
-    def _fit(self, data):
-        r"""
-        Fit the scaler to the data. (Protected method following RDT pattern)
-
-        Args:
-            data: Input data (pandas Series, numpy array, or DataFrame column).
-        """
-        # Ensure data is 2D for sklearn
-        if isinstance(data, pd.Series):
-            data = data.values.reshape(-1, 1)
-        elif isinstance(data, np.ndarray) and data.ndim == 1:
-            data = data.reshape(-1, 1)
-
-        self._scaler.fit(data)
-
-    def _transform(self, data):
-        r"""
-        Transform the data using the fitted scaler. (Protected method following RDT pattern)
-
-        Args:
-            data: Input data to transform.
-
-        Returns:
-            Scaled data as numpy array (1D or 2D depending on input).
-        """
-        # Ensure data is 2D for sklearn
-        if isinstance(data, pd.Series):
-            data = data.values.reshape(-1, 1)
-        elif isinstance(data, np.ndarray) and data.ndim == 1:
-            data = data.reshape(-1, 1)
-
-        return self._scaler.transform(data)
-
-    def _reverse_transform(self, data):
-        r"""
-        Reverse the scaling transformation (inverse transform). \
-            (Protected method following RDT pattern)
-
-        Args:
-            data: Scaled data to inverse transform back to original scale.
-
-        Returns:
-            Data in original scale as numpy array.
-        """
-        # Ensure data is 2D for sklearn
-        if isinstance(data, pd.Series):
-            data = data.values.reshape(-1, 1)
-        elif isinstance(data, np.ndarray) and data.ndim == 1:
-            data = data.reshape(-1, 1)
-
-        return self._scaler.inverse_transform(data)
+from privacy_utility_framework.dataset.transformers import MinMaxScalerTransformer
 
 
 class Dataset:
