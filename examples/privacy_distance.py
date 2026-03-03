@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 
 from privacy_utility_framework.metrics.privacy_metrics.distance.adversarial_accuracy_class import (
@@ -17,11 +19,20 @@ from privacy_utility_framework.metrics.privacy_metrics.privacy_metric_manager im
     PrivacyMetricManager,
 )
 
+BASE_DIR = Path(__file__).resolve().parent
+DATASETS_DIR = BASE_DIR.parent / "datasets"
+
+
+def _dataset_path(*parts: str) -> Path:
+    return DATASETS_DIR.joinpath(*parts)
+
 
 def dcr_example():
     print("~~~~~~~~~DCR EXAMPLE~~~~~~~~~~")
-    original_data = pd.read_csv("../datasets/original/diabetes.csv")
-    synthetic_data = pd.read_csv("../datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
+    original_data = pd.read_csv(_dataset_path("original", "diabetes.csv"))
+    synthetic_data = pd.read_csv(
+        _dataset_path("synthetic", "diabetes_datasets", "ctgan_sample.csv")
+    )
 
     test_dcr_calculator = DCRCalculator(
         original_data, synthetic_data, weights=[1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -37,8 +48,10 @@ def nndr_example():
 
     for orig in original_datasets:
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(_dataset_path("original", f"{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _dataset_path("synthetic", f"{orig}_datasets", f"{syn}_sample.csv")
+            )
             test_nndr_calculator = NNDRCalculator(original_data, synthetic_data)
             test_nndr = test_nndr_calculator.evaluate()
             print(f"NNDR {orig, syn}: {test_nndr}")
@@ -51,8 +64,10 @@ def nnaa_example():
 
     for orig in original_datasets:
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(_dataset_path("original", f"{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _dataset_path("synthetic", f"{orig}_datasets", f"{syn}_sample.csv")
+            )
             print(f"~~~~~~Adversarial Accuracy CDIST~~~~~~ {orig, syn}")
 
             calculator_cdist = AdversarialAccuracyCalculator(original_data, synthetic_data)
@@ -85,8 +100,10 @@ def disco_example():
 
     for orig in original_datasets:
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(_dataset_path("original", f"{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _dataset_path("synthetic", f"{orig}_datasets", f"{syn}_sample.csv")
+            )
             print(f"~~~Pair: {orig, syn}~~~\n")
             calc = DisclosureCalculator(
                 original_data, synthetic_data, keys=insurance_keys, target=insurance_target
@@ -96,8 +113,10 @@ def disco_example():
 
 
 def privacy_metric_manager_example():
-    original_data = pd.read_csv("../datasets/original/diabetes.csv")
-    synthetic_data = pd.read_csv("../datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
+    original_data = pd.read_csv(_dataset_path("original", "diabetes.csv"))
+    synthetic_data = pd.read_csv(
+        _dataset_path("synthetic", "diabetes_datasets", "ctgan_sample.csv")
+    )
     original_name = "Diabetes"
     synthetic_name = "CTGAN"
     p = PrivacyMetricManager()
@@ -127,8 +146,65 @@ def privacy_metric_manager_example():
         print(f"{key}: {value}")
 
 
+def privacy_metric_manager_quantile_example():
+    print("~~~~~~~~~PRIVACY METRICS (QUANTILE DISTANCE)~~~~~~~~~~")
+    original_data = pd.read_csv(_dataset_path("original", "diabetes.csv"))
+    synthetic_data = pd.read_csv(
+        _dataset_path("synthetic", "diabetes_datasets", "ctgan_sample.csv")
+    )
+    original_name = "Diabetes"
+    synthetic_name = "CTGAN"
+
+    quantile_metric_args = {
+        "original_data": original_data,
+        "base_metric": "euclidean",
+        "output_distribution": "uniform",
+    }
+
+    p = PrivacyMetricManager()
+    metric_list = [
+        DCRCalculator(
+            original_data,
+            synthetic_data,
+            original_name=original_name,
+            synthetic_name=synthetic_name,
+            distance_metric="quantile",
+            distance_metric_args=quantile_metric_args,
+        ),
+        NNDRCalculator(
+            original_data,
+            synthetic_data,
+            original_name=original_name,
+            synthetic_name=synthetic_name,
+            distance_metric="quantile",
+            distance_metric_args=quantile_metric_args,
+        ),
+        AdversarialAccuracyCalculator(
+            original_data,
+            synthetic_data,
+            original_name=original_name,
+            synthetic_name=synthetic_name,
+            distance_metric="quantile",
+            distance_metric_args=quantile_metric_args,
+        ),
+        AdversarialAccuracyCalculator_NN(
+            original_data,
+            synthetic_data,
+            original_name=original_name,
+            synthetic_name=synthetic_name,
+            distance_metric="quantile",
+            distance_metric_args=quantile_metric_args,
+        ),
+    ]
+    p.add_metric(metric_list)
+    results = p.evaluate_all()
+    for key, value in results.items():
+        print(f"{key}: {value}")
+
+
 # dcr_example()
 # nndr_example()
 # nnaa_example()
 # privacy_metric_manager_example()
+privacy_metric_manager_quantile_example()
 # disco_new()

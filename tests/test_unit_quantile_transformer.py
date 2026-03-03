@@ -19,7 +19,9 @@ def test_quantile_rd_transformer():
     data = pd.DataFrame({"A": np.linspace(10, 100, N)})
 
     # Initialize the QuantileRDTransformer
-    transformer = QuantileRDTransformer(n_quantiles=0, subsample=0, output_distribution="uniform")
+    transformer = QuantileRDTransformer(
+        n_quantiles=0, subsample=None, output_distribution="uniform"
+    )
 
     # Fit the transformer to the data
     transformer.fit(data, column="A")
@@ -27,7 +29,15 @@ def test_quantile_rd_transformer():
     # Transform the data
     transformed_data = transformer.transform(data)
 
-    y = np.linspace(1 / N, 1, N)
+    print(transformed_data["A"])
+
+    # ECDF expected values: [0.1, 0.2, ..., 1.0] = [(r_i + 1 )/ N]
+    # Sklearn's QuantileTransformer expected values:
+    # [0, 0.11, 0.22, ..., 1.0] = [r_i / (N-1)]
+
+    y = np.linspace(0, 1, N)
+    print(y)
+
     # Check that the transformed data is approximately equal to the expected quantiles
     assert np.allclose(transformed_data["A"], y, atol=1e-2), (
         "Transformed values for column A do not match expected quantiles."

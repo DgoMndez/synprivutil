@@ -1,20 +1,20 @@
+from collections.abc import Callable
+
 import numpy as np
 import pandas as pd
-from scipy.spatial import distance
 
-from privacy_utility_framework.metrics.privacy_metrics import (
-    PrivacyMetricCalculator,
-)
+from .distance_privacy_metric_calculator import DistancePrivacyMetricCalculator
 
 
-class NNDRCalculator(PrivacyMetricCalculator):
+class NNDRCalculator(DistancePrivacyMetricCalculator):
     def __init__(
         self,
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
         original_name: str = None,
         synthetic_name: str = None,
-        distance_metric: str = "euclidean",
+        distance_metric: str | Callable = "euclidean",
+        distance_metric_args: dict | None = None,
     ):
         """
         Initialize the NNDRCalculator with original and synthetic datasets and a distance metric.
@@ -24,20 +24,23 @@ class NNDRCalculator(PrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             original_name (str, optional): Name for the original dataset (default: None).
             synthetic_name (str, optional): Name for the synthetic dataset (default: None).
-            distance_metric (str): The metric for calculating distances (default: 'euclidean').
+            distance_metric (str or callable): The metric for calculating distances.
+            distance_metric_args (dict, optional): Extra keyword arguments forwarded to
+                ``custom_cdist`` for custom string/callable metrics.
         """
         # Initialize the superclass with datasets and settings
         super().__init__(
             original,
             synthetic,
             distance_metric=distance_metric,
+            distance_metric_args=distance_metric_args,
             original_name=original_name,
             synthetic_name=synthetic_name,
         )
 
         # Validate that distance_metric is set
         if distance_metric is None:
-            raise ValueError("Parameter 'metric' is required in NNDRCalculator.")
+            raise ValueError("Parameter 'distance_metric' is required in NNDRCalculator.")
 
         # Define distance metric
         self.distance_metric = distance_metric
@@ -56,7 +59,7 @@ class NNDRCalculator(PrivacyMetricCalculator):
         synthetic = self.synthetic.transformed_data
 
         # Compute distances from each synthetic record to all original records
-        distances = distance.cdist(synthetic, original, metric=self.distance_metric)
+        distances = self.compute_cdist(synthetic, original)
 
         # Find the nearest and second nearest distances for each synthetic record
         partitioned_distances = np.partition(distances, 1, axis=1)[:, :2]

@@ -45,9 +45,13 @@ def test_custom_hypertransformer():
     )
     dm = DatasetManager.from_dataframes(original, synthetic)
     hypertransformer = HyperTransformer()
-
-    hypertransformer.update_transformers_by_sdtype(sdtype="numerical", transformer="gaussian")
-    hypertransformer.update_transformers_by_sdtype(sdtype="categorical", transformer="uniform")
+    hypertransformer._learn_config(original)
+    hypertransformer.update_transformers_by_sdtype(
+        sdtype="numerical", transformer_name="GaussianNormalizer"
+    )
+    hypertransformer.update_transformers_by_sdtype(
+        sdtype="categorical", transformer_name="UniformEncoder"
+    )
     dm.set_hypertransformer(hypertransformer)
     dm.transform_datasets()
 

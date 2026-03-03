@@ -1,22 +1,20 @@
+from collections.abc import Callable
+
 import numpy as np
 import pandas as pd
-from scipy.spatial import distance
 
-from privacy_utility_framework.metrics.privacy_metrics import (
-    PrivacyMetricCalculator,
-)
-
-# DONE
+from .distance_privacy_metric_calculator import DistancePrivacyMetricCalculator
 
 
-class DCRCalculator(PrivacyMetricCalculator):
+class DCRCalculator(DistancePrivacyMetricCalculator):
     def __init__(
         self,
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
         original_name: str = None,
         synthetic_name: str = None,
-        distance_metric: str = "euclidean",
+        distance_metric: str | Callable = "euclidean",
+        distance_metric_args: dict | None = None,
         weights: np.ndarray = None,
     ):
         """
@@ -27,8 +25,10 @@ class DCRCalculator(PrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             original_name (str, optional): Name for the original dataset (default: None).
             synthetic_name (str, optional): Name for the synthetic dataset (default: None).
-            distance_metric (str): The metric for calculating distances \
+            distance_metric (str or callable): The metric for calculating distances \
                 ('euclidean', 'cityblock', etc.).
+            distance_metric_args (dict, optional): Extra keyword arguments forwarded to
+                ``custom_cdist`` for custom string/callable metrics.
             weights (np.ndarray, optional): Array of weights for each feature in the datasets.
         """
         # Initialize the superclass with datasets and settings
@@ -36,6 +36,7 @@ class DCRCalculator(PrivacyMetricCalculator):
             original,
             synthetic,
             distance_metric=distance_metric,
+            distance_metric_args=distance_metric_args,
             original_name=original_name,
             synthetic_name=synthetic_name,
         )
@@ -65,19 +66,8 @@ class DCRCalculator(PrivacyMetricCalculator):
         weighted_synthetic_data = synthetic * self.weights
 
         # Compute pairwise distances between synthetic and original data
-        dists = distance.cdist(
-            weighted_synthetic_data, weighted_original_data, metric=self.distance_metric
-        )
+        dists = self.compute_cdist(weighted_synthetic_data, weighted_original_data)
 
         # Find and average the minimum distances for each synthetic record
         min_distances = np.min(dists, axis=1)
         return np.mean(min_distances)
-
-    def set_metric(self, metric: str):
-        """
-        Sets or updates the distance metric for the DCR calculation.
-
-        Parameters:
-            metric (str): The distance metric to use in DCR calculation.
-        """
-        self.distance_metric = metric

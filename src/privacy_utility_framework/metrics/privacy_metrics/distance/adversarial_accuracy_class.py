@@ -1,12 +1,14 @@
+from collections.abc import Callable
+
 import numpy as np
 import pandas as pd
-from scipy.spatial import distance
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
 from .distance_privacy_metric_calculator import (
     DistancePrivacyMetricCalculator,
 )
+from .util import METRIC_ALIAS
 
 
 class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
@@ -19,7 +21,8 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
         self,
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
-        distance_metric: str | callable = "euclidean",
+        distance_metric: str | Callable = "euclidean",
+        distance_metric_args: dict | None = None,
         original_name: str = None,
         synthetic_name: str = None,
     ):
@@ -31,17 +34,17 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
         Parameters:
             original (pd.DataFrame): Original dataset.
             synthetic (pd.DataFrame): Synthetic dataset.
-            distance_metric (str): The metric for calculating distances (default: 'euclidean').
+            distance_metric (str or callable): The metric for calculating distances.
+            distance_metric_args (dict, optional): Extra keyword arguments forwarded to
+                ``custom_cdist`` for custom string/callable metrics.
         """
-        assert distance_metric is not None, (
-            "Parameter 'distance_metric' is required in AdversarialAccuracyCalculator."
-        )
 
         # Initialize the superclass with datasets and settings
         super().__init__(
             original,
             synthetic,
             distance_metric=distance_metric,
+            distance_metric_args=distance_metric_args,
             original_name=original_name,
             synthetic_name=synthetic_name,
         )
@@ -54,13 +57,11 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
             float: The calculated NNAA.
         """
         # Calculate minimum distances between records in original and synthetic data
-        min_d_syn_orig, min_d_orig_syn, min_d_orig_orig, min_d_syn_syn = (
-            self._calculate_min_distances()
-        )
+        min_orig, min_syn = self._calculate_min_distances()
 
         # Compute NNAA based on distances within and between datasets
-        term1 = np.mean(min_d_orig_syn > min_d_orig_orig)
-        term2 = np.mean(min_d_syn_orig > min_d_syn_syn)
+        term1 = np.mean(min_orig[1] > min_orig[0])
+        term2 = np.mean(min_syn[0] > min_syn[1])
 
         nnaa_value = 0.5 * (term1 + term2)
 
@@ -69,14 +70,13 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
     def _calculate_min_distances(self):
         """
         Calculate minimum distances for nearest neighbor adversarial accuracy.
-
-
+        
         Returns:
-        tuple: (min_d_syn_orig, min_d_orig_syn, min_d_orig_orig, min_d_syn_syn)
-               - min_d_syn_orig: Minimum distance from each synthetic sample to original samples.
-               - min_d_orig_syn: Minimum distance from each original sample to synthetic samples.
-               - min_d_orig_orig: Minimum leave-one-out distance within original samples.
-               - min_d_syn_syn: Minimum leave-one-out distance within synthetic samples.
+            tuple: (M_0, M_1) of arrays forming (M_{i,j,k} : i=0,1; j=0,1; 0<=k<n_i) st:
+                - Datasets are represented by indexes i and j: 0 = original, 1 = synthetic.
+                - Index k represents the k-th record in dataset i.
+                - M_{i,j,k} is the distance from record k in dataset i \
+                    to its nearest neighbor in dataset j.
         """
         # The transformed and normalized data is used for the NNAA
 
@@ -84,7 +84,8 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
         synthetic = self.synthetic.transformed_data
 
         aux_list = [original, synthetic]
-        distances = np.zeros((2, 2))
+        len_list = [original.shape[0], synthetic.shape[0]]
+        min_distances = [np.empty((2, len_list[0])), np.empty((2, len_list[1]))]
 
         # Calculate pairwise distances between original and synthetic datasets
         # i = 0 for original, i = 1 for synthetic
@@ -92,15 +93,15 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
 
         for i in range(2):
             for j in range(2):
-                d = distance.cdist(aux_list[i], aux_list[j], metric=self.distance_metric)
+                d = self.compute_cdist(aux_list[i], aux_list[j])
                 if i == j:
                     np.fill_diagonal(d, np.inf)  # Ignore self-distances for same dataset
-                distances[i][j] = np.min(d, axis=1)
+                min_distances[i][j, :] = np.min(d, axis=1)
 
-        return distances[1][0], distances[0][1], distances[0][0], distances[1][1]
+        return min_distances[0], min_distances[1]
 
 
-class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
+class AdversarialAccuracyCalculator_NN(AdversarialAccuracyCalculator):
     """
     Calculate nearest neighbors and adversarial accuracy metrics for original and synthetic \
         datasets using Nearest Neighbors (may be faster in some cases).
@@ -110,7 +111,8 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
         self,
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
-        distance_metric: str = "euclidean",
+        distance_metric: str | Callable = "euclidean",
+        distance_metric_args: dict | None = None,
         original_name: str = None,
         synthetic_name: str = None,
     ):
@@ -120,15 +122,15 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
         Parameters:
             original (pd.DataFrame): Original dataset.
             synthetic (pd.DataFrame): Synthetic dataset.
-            distance_metric (str): Metric for distance calculation (default: 'euclidean').
+            distance_metric (str or callable): Metric for distance calculation.
+            distance_metric_args (dict, optional): Extra keyword arguments forwarded to
+                ``custom_cdist`` for custom string/callable metrics.
         """
-        assert distance_metric is not None, (
-            "Parameter 'distance_metric' is required in AdversarialAccuracyCalculator_NN."
-        )
         super().__init__(
             original,
             synthetic,
             distance_metric=distance_metric,
+            distance_metric_args=distance_metric_args,
             original_name=original_name,
             synthetic_name=synthetic_name,
         )
@@ -151,13 +153,27 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
         Returns:
             tuple: (target dataset, source dataset, distances).
         """
-        nn_s = NearestNeighbors(n_neighbors=1, metric=self.distance_metric).fit(self.data[s])
-        if t == s:
-            # Find distances within the same dataset
-            d = nn_s.kneighbors()[0]
+        is_custom_registered_metric = (
+            isinstance(self.distance_metric, str) and self.distance_metric in METRIC_ALIAS
+        )
+
+        if is_custom_registered_metric:
+            d = self.compute_cdist(self.data[t], self.data[s])
+            if t == s:
+                np.fill_diagonal(d, np.inf)
+            d = np.min(d, axis=1).reshape(-1, 1)
         else:
-            # Find distances between different datasets
-            d = nn_s.kneighbors(self.data[t])[0]
+            nn_s = NearestNeighbors(
+                n_neighbors=1,
+                metric=self.distance_metric,
+                metric_params=self.distance_metric_args,
+            ).fit(self.data[s])
+            if t == s:
+                # Find distances within the same dataset
+                d = nn_s.kneighbors()[0]
+            else:
+                # Find distances between different datasets
+                d = nn_s.kneighbors(self.data[t])[0]
 
         return t, s, d
 

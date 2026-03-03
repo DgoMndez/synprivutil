@@ -1,9 +1,12 @@
+from unittest.mock import Mock
+
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
+from privacy_utility_framework.dataset.transformers import QuantileRDTransformer
 from privacy_utility_framework.metrics.privacy_metrics.distance.util import (
-    cdf_cdist,
+    quantile_cdist,
     transformed_cdist,
 )
 
@@ -68,7 +71,7 @@ def test_linear_transformed_cdist():
     )
 
 
-def test_cdf_cdist():
+def test_quantile_cdist():
     # Create a simple dataset
     XA = np.array(
         [np.linspace(0, 100, 10, endpoint=False), np.linspace(100, 200, 10, endpoint=False)]
@@ -81,17 +84,60 @@ def test_cdf_cdist():
     column2 = np.linspace(110, 200, 10)
     original_data = pd.DataFrame({"col1": column1, "col2": column2})
 
+    class RankQuantileMockTransformer(QuantileRDTransformer):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._sorted_values = None
+            self._n_samples = None
+
+        def _fit(self, data):
+            values = np.asarray(data).reshape(-1)
+            self._sorted_values = np.sort(values)
+            self._n_samples = len(values)
+            self._fitted = True
+
+        def _transform(self, data):
+            assert self._fitted, "RankQuantileMockTransformer must be fitted before transform."
+            values = np.asarray(data).reshape(-1)
+            ranks = np.searchsorted(self._sorted_values, values, side="right") - 1
+            ranks = np.clip(ranks, 0, self._n_samples - 1)
+            transformed = (ranks + 1) / self._n_samples
+            return transformed.reshape(-1, 1)
+
+    qt_factory = Mock(side_effect=lambda **kwargs: RankQuantileMockTransformer(**kwargs))
+
     # Calculate distances using cdf_cdist
-    distances = cdf_cdist(
-        XA, XB, metric="euclidean", output_distribution="uniform", original_data=original_data
+    distances = quantile_cdist(
+        XA,
+        XB,
+        base_metric="euclidean",
+        output_distribution="uniform",
+        original_data=original_data,
+        qt_factory=qt_factory,
     )
 
-    YA = np.array([np.linspace(0, 1, 10, endpoint=False), np.linspace(0, 1, 10, endpoint=False)]).T
-    YB = np.array(
-        [np.linspace(0, 0.5, 10, endpoint=False), np.linspace(0, 0.75, 10, endpoint=False)]
-    ).T
-    YB[1::2, :] = YB[0::2, :]
+    def rank_transform(values, reference_values):
+        sorted_values = np.sort(np.asarray(reference_values).reshape(-1))
+        n_samples = len(sorted_values)
+        ranks = np.searchsorted(sorted_values, np.asarray(values).reshape(-1), side="right") - 1
+        ranks = np.clip(ranks, 0, n_samples - 1)
+        return (ranks + 1) / n_samples
+
+    YA = np.column_stack(
+        [
+            rank_transform(XA[:, 0], original_data["col1"].to_numpy()),
+            rank_transform(XA[:, 1], original_data["col2"].to_numpy()),
+        ]
+    )
+    YB = np.column_stack(
+        [
+            rank_transform(XB[:, 0], original_data["col1"].to_numpy()),
+            rank_transform(XB[:, 1], original_data["col2"].to_numpy()),
+        ]
+    )
     true_distances = cdist(YA, YB, metric="euclidean")
+
+    qt_factory.assert_called_once_with(output_distribution="uniform")
 
     assert np.allclose(distances, true_distances), (
         "CDF-transformed distances should match true distances in uniform space."

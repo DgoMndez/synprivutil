@@ -117,9 +117,9 @@ class QuantileRDTransformer(BaseTransformer):
 
     def __init__(
         self,
-        n_quantiles=0,
-        output_distribution="uniform",
-        subsample=0,
+        n_quantiles: int | None = 0,
+        output_distribution: str = "uniform",
+        subsample: int | None = None,
         random_state=None,
         **q_transformer_kwargs,
     ):
@@ -132,8 +132,10 @@ class QuantileRDTransformer(BaseTransformer):
                     Default is 0.
             output_distribution (str): Desired target distribution of transformed data \
                 ('uniform' or 'normal'). Default is 'uniform'.
-            subsample (int): Maximum number of samples to use for fitting. Default is 0. \
-                If <=0, it will be lazily set to the number of rows when fitted.
+            subsample (int): Maximum number of samples to use for fitting.  \
+                If <=0, it will be lazily set to the number of rows when fitted. \
+                    If None, no subsampling is performed.Default is None. \
+               
              **q_transformer_kwargs: Additional keyword arguments forwarded to the \
                 underlying QuantileTransformer.
         """
@@ -178,9 +180,9 @@ class QuantileRDTransformer(BaseTransformer):
 
     def _build_transformer(self, data):
         n_rows = self._get_num_rows(data)
-        if self._n_quantiles <= 0:
+        if self._n_quantiles is None or self._n_quantiles <= 0:
             self._n_quantiles = n_rows
-        if self._subsample <= 0:
+        if self._subsample is not None and self._subsample <= 0:
             self._subsample = n_rows
         self._qtransformer = QuantileTransformer(
             n_quantiles=self._n_quantiles,
