@@ -1,7 +1,9 @@
+import warnings
 from pathlib import Path
 
 import pandas as pd
 
+from privacy_utility_framework.dataset.dataset import Dataset
 from privacy_utility_framework.metrics.privacy_metrics.distance.adversarial_accuracy_class import (
     AdversarialAccuracyCalculator,
     AdversarialAccuracyCalculator_NN,
@@ -21,6 +23,8 @@ from privacy_utility_framework.metrics.privacy_metrics.privacy_metric_manager im
 
 BASE_DIR = Path(__file__).resolve().parent
 DATASETS_DIR = BASE_DIR.parent / "datasets"
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 def _dataset_path(*parts: str) -> Path:
@@ -60,7 +64,7 @@ def nndr_example():
 def nnaa_example():
     print("~~~~~~~~~NNAA EXAMPLE~~~~~~~~~~")
     synthetic_datasets = ["copulagan", "ctgan", "gaussian_copula", "gmm", "tvae", "random"]
-    original_datasets = ["diabetes", "insurance"]
+    original_datasets = ["diabetes", "insurance", "cardio"]
 
     for orig in original_datasets:
         for syn in synthetic_datasets:
@@ -70,9 +74,12 @@ def nnaa_example():
             )
             print(f"~~~~~~Adversarial Accuracy CDIST~~~~~~ {orig, syn}")
 
-            calculator_cdist = AdversarialAccuracyCalculator(original_data, synthetic_data)
-            nnaa1 = calculator_cdist.evaluate()
-            print(nnaa1)
+            try:
+                calculator_cdist = AdversarialAccuracyCalculator(original_data, synthetic_data)
+                nnaa1 = calculator_cdist.evaluate()
+                print(nnaa1)
+            except Exception as e:
+                print(f"Error calculating NNAA with CDIST for {orig, syn}: {e}")
 
             print(f"~~~~~~Adversarial Accuracy NN~~~~~~ {orig, syn}")
             calculator_nn = AdversarialAccuracyCalculator_NN(original_data, synthetic_data)
@@ -148,63 +155,65 @@ def privacy_metric_manager_example():
 
 def privacy_metric_manager_quantile_example():
     print("~~~~~~~~~PRIVACY METRICS (QUANTILE DISTANCE)~~~~~~~~~~")
-    original_data = pd.read_csv(_dataset_path("original", "diabetes.csv"))
-    synthetic_data = pd.read_csv(
-        _dataset_path("synthetic", "diabetes_datasets", "ctgan_sample.csv")
-    )
-    original_name = "Diabetes"
-    synthetic_name = "CTGAN"
+    datasets = ["diabetes", "insurance"]
+    synthetizers = ["copulagan", "ctgan", "gaussian_copula", "gmm", "tvae", "random"]
 
-    quantile_metric_args = {
-        "original_data": original_data,
-        "base_metric": "euclidean",
-        "output_distribution": "uniform",
-    }
+    for orig in datasets:
+        for syn in synthetizers:
+            original_data = pd.read_csv(_dataset_path("original", f"{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _dataset_path("synthetic", f"{orig}_datasets", f"{syn}_sample.csv")
+            )
+            original_name = orig.capitalize()
+            synthetic_name = syn.upper()
 
-    p = PrivacyMetricManager()
-    metric_list = [
-        DCRCalculator(
-            original_data,
-            synthetic_data,
-            original_name=original_name,
-            synthetic_name=synthetic_name,
-            distance_metric="quantile",
-            distance_metric_args=quantile_metric_args,
-        ),
-        NNDRCalculator(
-            original_data,
-            synthetic_data,
-            original_name=original_name,
-            synthetic_name=synthetic_name,
-            distance_metric="quantile",
-            distance_metric_args=quantile_metric_args,
-        ),
-        AdversarialAccuracyCalculator(
-            original_data,
-            synthetic_data,
-            original_name=original_name,
-            synthetic_name=synthetic_name,
-            distance_metric="quantile",
-            distance_metric_args=quantile_metric_args,
-        ),
-        AdversarialAccuracyCalculator_NN(
-            original_data,
-            synthetic_data,
-            original_name=original_name,
-            synthetic_name=synthetic_name,
-            distance_metric="quantile",
-            distance_metric_args=quantile_metric_args,
-        ),
-    ]
-    p.add_metric(metric_list)
-    results = p.evaluate_all()
-    for key, value in results.items():
-        print(f"{key}: {value}")
+            print(f"~~~Pair: {orig, syn}~~~\n")
+
+            original_dataset = Dataset(original_data, name=original_name)
+            original_dataset.fit_transform()
+
+            quantile_metric_args = {
+                "original_data": original_dataset.transformed_data,
+                "base_metric": "euclidean",
+                "output_distribution": "uniform",
+            }
+
+            p = PrivacyMetricManager()
+            metric_list = [
+                DCRCalculator(
+                    original_data,
+                    synthetic_data,
+                    original_name=original_name,
+                    synthetic_name=synthetic_name,
+                    distance_metric="quantile",
+                    distance_metric_args=quantile_metric_args,
+                ),
+                NNDRCalculator(
+                    original_data,
+                    synthetic_data,
+                    original_name=original_name,
+                    synthetic_name=synthetic_name,
+                    distance_metric="quantile",
+                    distance_metric_args=quantile_metric_args,
+                ),
+                AdversarialAccuracyCalculator(
+                    original_data,
+                    synthetic_data,
+                    original_name=original_name,
+                    synthetic_name=synthetic_name,
+                    distance_metric="quantile",
+                    distance_metric_args=quantile_metric_args,
+                ),
+            ]
+            p.add_metric(metric_list)
+            results = p.evaluate_all()
+            for key, value in results.items():
+                print(f"{key}: {value}")
 
 
-# dcr_example()
-# nndr_example()
-# nnaa_example()
-# privacy_metric_manager_example()
+dcr_example()
+nndr_example()
+nnaa_example()
+privacy_metric_manager_example()
 privacy_metric_manager_quantile_example()
 # disco_new()

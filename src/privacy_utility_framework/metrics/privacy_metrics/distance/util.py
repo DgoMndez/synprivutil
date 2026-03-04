@@ -50,6 +50,17 @@ def _to_dataframe(data, columns):
     return pd.DataFrame(array_data, columns=columns)
 
 
+def _get_quantile_hypertransformer(
+    original_data, qt_factory=QuantileRDTransformer, output_distribution="uniform"
+):
+    transformer = qt_factory(output_distribution=output_distribution)
+    hypertransformer = HyperTransformer()
+    hypertransformer._learn_config(original_data)
+    hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
+    hypertransformer.fit(original_data)
+    return hypertransformer
+
+
 def transformed_dist(
     u, v, *, hypertransformer: HyperTransformer, base_metric: str | Callable = "euclidean", **kwargs
 ):
@@ -292,11 +303,9 @@ def quantile_cdist(
         "XA, XB, and original_data must have the same number of columns."
     )
 
-    transformer = qt_factory(output_distribution=output_distribution)
-    hypertransformer = HyperTransformer()
-    hypertransformer._learn_config(original_data)
-    hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
-    hypertransformer.fit(original_data)
+    hypertransformer = _get_quantile_hypertransformer(
+        original_data=original_data, qt_factory=qt_factory, output_distribution=output_distribution
+    )
     XA_transformed = hypertransformer.transform(XA)
     XB_transformed = hypertransformer.transform(XB)
     return distance.cdist(XA_transformed, XB_transformed, metric=base_metric, out=out, **kwargs)

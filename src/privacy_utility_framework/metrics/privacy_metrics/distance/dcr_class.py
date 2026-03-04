@@ -47,7 +47,16 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
 
         # Define distance metric and feature weights for calculations
         self.distance_metric = distance_metric
-        self.weights = weights if weights is not None else np.ones(self.original.data.shape[1])
+        transformed_feature_count = self.original.transformed_data.shape[1]
+        if weights is None:
+            self.weights = np.ones(transformed_feature_count)
+        else:
+            self.weights = np.asarray(weights).reshape(-1)
+            if self.weights.shape[0] != transformed_feature_count:
+                raise ValueError(
+                    "Length of 'weights' must match the number of transformed features "
+                    f"({transformed_feature_count}), got {self.weights.shape[0]}."
+                )
 
     def evaluate(self) -> float:
         """
