@@ -137,6 +137,25 @@ class Dataset:
         transformers.update(cls._DEFAULT_TRANSFORMERS)
         return transformers
 
+    def get_data(self):
+        """
+        Get the original data of the dataset.
+
+        Returns:
+            pd.DataFrame: The original data of the dataset.
+        """
+        return self.data
+
+    def get_transformed_data(self):
+        """
+        Get the transformed data of the dataset.
+
+        Returns:
+            pd.DataFrame: The transformed data of the dataset. \
+                Returns None if the data has not been transformed yet.
+        """
+        return self.transformed_data
+
 
 class DatasetManager:
     def __init__(self, original: Dataset, synthetic: Dataset):
@@ -149,6 +168,8 @@ class DatasetManager:
         """
         self.original_dataset = original
         self.synthetic_dataset = synthetic
+        self.hypertransformer = None
+        self._set_hypertransformer = False
 
     @classmethod
     def from_dataframes(cls, original_df, synthetic_df, original_name=None, synthetic_name=None):
@@ -196,15 +217,46 @@ class DatasetManager:
 
         # Copy the fitted hypertransformer to the synthetic dataset
         self.synthetic_dataset.set_hypertransformer_from(self.original_dataset)
+        self._set_hypertransformer = True
 
     def transform_datasets(self):
         """
         Transforms both datasets using the same transformer.
         Ensures consistent transformation (including scaling) between both datasets.
         """
-        # Set up and copy transformer from original to synthetic dataset
-        self.set_hypertransformer()
+        # Preserve the currently configured transformer on the original dataset.
+        # If it is not fitted yet, fit it before sharing it with the synthetic dataset.
+        assert self._set_hypertransformer, (
+            "HyperTransformer must be set before transforming datasets."
+        )
 
         # Transform both datasets using the same transformer
         self.original_dataset.transform()
         self.synthetic_dataset.transform()
+
+    def get_original_dataset(self):
+        """
+        Get the original dataset.
+
+        Returns:
+            Dataset: The original dataset.
+        """
+        return self.original_dataset
+
+    def get_synthetic_dataset(self):
+        """
+        Get the synthetic dataset.
+
+        Returns:
+            Dataset: The synthetic dataset.
+        """
+        return self.synthetic_dataset
+
+    def get_datasets(self):
+        """
+        Get both the original and synthetic datasets.
+
+        Returns:
+            tuple: A tuple containing the original and synthetic datasets.
+        """
+        return self.original_dataset, self.synthetic_dataset
