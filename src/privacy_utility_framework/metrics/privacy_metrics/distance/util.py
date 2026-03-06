@@ -51,9 +51,9 @@ def _to_dataframe(data, columns):
 
 
 def _get_quantile_hypertransformer(
-    original_data, qt_factory=QuantileRDTransformer, output_distribution="uniform"
+    original_data, qt_factory=QuantileRDTransformer, output_distribution="uniform", **kwargs
 ):
-    transformer = qt_factory(output_distribution=output_distribution)
+    transformer = qt_factory(output_distribution=output_distribution, **kwargs)
     hypertransformer = HyperTransformer()
     hypertransformer._learn_config(original_data)
     hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
@@ -86,13 +86,8 @@ def transformed_dist(
     float
         Distance between ``u`` and ``v`` in transformed space.
     """
-    return transformed_cdist(
-        np.asarray([u]),
-        np.asarray([v]),
-        hypertransformer=hypertransformer,
-        base_metric=base_metric,
-        **kwargs,
-    )[0][0]
+    X_A, X_B = _transform_samples(u, v, hypertransformer)
+    return distance.cdist(X_A, X_B, metric=base_metric, **kwargs)[0][0]
 
 
 def transformed_cdist(
@@ -127,6 +122,12 @@ def transformed_cdist(
         Pairwise distances between rows of XA and XB, computed in transformed space.
     """
 
+    XA_transformed, XB_transformed = _transform_samples(XA, XB, hypertransformer)
+
+    return distance.cdist(XA_transformed, XB_transformed, metric=base_metric, out=out, **kwargs)
+
+
+def _transform_samples(XA, XB, hypertransformer):
     assert hypertransformer._fitted, (
         "HyperTransformer must be fitted before calling transformed_cdist."
     )
@@ -139,8 +140,7 @@ def transformed_cdist(
 
     XA_transformed = hypertransformer.transform(XA)
     XB_transformed = hypertransformer.transform(XB)
-
-    return distance.cdist(XA_transformed, XB_transformed, metric=base_metric, out=out, **kwargs)
+    return XA_transformed, XB_transformed
 
 
 def quantile_dist(
