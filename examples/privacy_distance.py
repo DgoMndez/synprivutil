@@ -66,12 +66,16 @@ def nnaa_example():
     synthetic_datasets = ["copulagan", "ctgan", "gaussian_copula", "gmm", "tvae", "random"]
     original_datasets = ["diabetes", "insurance", "cardio"]
 
-    for orig in original_datasets:
-        for syn in synthetic_datasets:
+    for i, orig in enumerate(original_datasets):
+        for j, syn in enumerate(synthetic_datasets):
             original_data = pd.read_csv(_dataset_path("original", f"{orig}.csv"))
             synthetic_data = pd.read_csv(
                 _dataset_path("synthetic", f"{orig}_datasets", f"{syn}_sample.csv")
             )
+
+            if i == 2 and j > 0:
+                continue
+
             print(f"~~~~~~Adversarial Accuracy CDIST~~~~~~ {orig, syn}")
 
             try:
@@ -185,24 +189,24 @@ def privacy_metric_manager_quantile_example():
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
-                    distance_metric="quantile",
-                    distance_metric_args=quantile_metric_args,
+                    distance_strategy="quantile",
+                    **quantile_metric_args,
                 ),
                 NNDRCalculator(
                     original_data,
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
-                    distance_metric="quantile",
-                    distance_metric_args=quantile_metric_args,
+                    distance_strategy="quantile",
+                    **quantile_metric_args,
                 ),
                 AdversarialAccuracyCalculator(
                     original_data,
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
-                    distance_metric="quantile",
-                    distance_metric_args=quantile_metric_args,
+                    distance_strategy="quantile",
+                    **quantile_metric_args,
                 ),
             ]
             p.add_metric(metric_list)

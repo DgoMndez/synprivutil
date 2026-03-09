@@ -7,6 +7,12 @@ Email: domingo.mendezg@um.es
 Date: 27/02/2026
 """
 
+# TODO:
+# DONE 1. Integrate strategies into privacy/similarity metrics.
+# 2. QuantileDistanceStrategy test
+# 3. cdist Matrix bug
+# 4. ECDF-transformer with tests
+
 from collections.abc import Callable
 
 import numpy as np

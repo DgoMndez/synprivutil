@@ -9,7 +9,7 @@ from scipy.spatial import distance
 
 from privacy_utility_framework.dataset.transformers import QuantileRDTransformer
 
-from ..metrics.privacy_metrics.distance.util import (
+from .distance import (
     _get_quantile_hypertransformer,
     custom_cdist,
     transformed_cdist,
@@ -18,6 +18,8 @@ from ..metrics.privacy_metrics.distance.util import (
 
 class DistanceStrategy(ABC):
     """Strategy interface for distance computation (single samples, pairwise or matrix)."""
+
+    canonical_name = None
 
     def __init__(self, default_args: dict | None = None):
         """
@@ -39,7 +41,6 @@ class DistanceStrategy(ABC):
         """Set default metric arguments for this strategy."""
         self.metric_args = args.copy()
 
-    @abstractmethod
     def dist(self, u, v, **kwargs):
         """Compute distance between two samples u and v."""
         # Default implementation based on cdist
@@ -49,7 +50,6 @@ class DistanceStrategy(ABC):
             metric_args.update(kwargs)
         return self.cdist([u], [v], **metric_args)[0][0]
 
-    @abstractmethod
     def pdist(self, X, *, out=None, **kwargs):
         """Compute pairwise distances between rows of X."""
         # Default implementation based on cdist
@@ -89,7 +89,17 @@ class DistanceStrategy(ABC):
 class ScipyDistanceStrategy(DistanceStrategy):
     """Distance strategy backed by scipy.spatial.distance.cdist."""
 
+    canonical_name = "scipy"
+
     def __init__(self, metric: str | Callable = "euclidean", default_args: dict | None = None):
+        """
+        Constructor for Scipy Distance Strategy.
+
+        Args:
+            metric (str | Callable, optional): The distance metric to use. Defaults to "euclidean".
+            default_args (dict | None, optional): Default arguments for the distance metric. \
+                Defaults to None.
+        """
         super().__init__(default_args=default_args)
         self._metric = metric
 
@@ -126,6 +136,8 @@ class ScipyDistanceStrategy(DistanceStrategy):
 
 class TransformedDistanceStrategy(DistanceStrategy):
     """Distance strategy that applies a hypertransformer before distance computation."""
+
+    canonical_name = "transformed"
 
     def __init__(
         self,
@@ -173,6 +185,8 @@ class QuantileDistanceStrategy(DistanceStrategy):
     Quantile Distance Strategy that applies a quantile-based hypertransformer \
         before distance computation.
     """
+
+    canonical_name = "quantile"
 
     def __init__(
         self,
@@ -270,9 +284,18 @@ class QuantileDistanceStrategy(DistanceStrategy):
 class CustomDistanceStrategy(DistanceStrategy):
     """Distance strategy backed by the project's custom metric registry."""
 
+    canonical_name = "custom"
+
     def __init__(self, metric: str | Callable, default_args: dict | None = None):
         self._metric = metric
         self.metric_args = default_args.copy() if default_args else {}
+
+    def dist(self, u, v, **kwargs):
+        metric_kwargs = {**self.metric_args, **kwargs}
+        if callable(self._metric):
+            return self._metric(u, v, **metric_kwargs)
+        else:
+            return super().dist(u, v, **metric_kwargs)
 
     def cdist(self, XA, XB, *, out=None, **kwargs):
         metric_kwargs = {**self.metric_args, **kwargs}

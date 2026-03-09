@@ -1,8 +1,7 @@
-from collections.abc import Callable
-
 import numpy as np
 import pandas as pd
 
+from ....utils.distance.strategies import DistanceStrategy
 from .distance_privacy_metric_calculator import DistancePrivacyMetricCalculator
 
 
@@ -13,9 +12,9 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
         synthetic: pd.DataFrame,
         original_name: str = None,
         synthetic_name: str = None,
-        distance_metric: str | Callable = "euclidean",
-        distance_metric_args: dict | None = None,
+        distance_strategy: str | DistanceStrategy = "euclidean",
         weights: np.ndarray = None,
+        **kwargs,
     ):
         """
         Initializes the DCRCalculator with datasets and a specified distance metric.
@@ -25,28 +24,23 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             original_name (str, optional): Name for the original dataset (default: None).
             synthetic_name (str, optional): Name for the synthetic dataset (default: None).
-            distance_metric (str or callable): The metric for calculating distances \
+            distance_strategy (str or DistanceStrategy): The strategy for calculating distances \
                 ('euclidean', 'cityblock', etc.).
-            distance_metric_args (dict, optional): Extra keyword arguments forwarded to
-                ``custom_cdist`` for custom string/callable metrics.
             weights (np.ndarray, optional): Array of weights for each feature in the datasets.
+            **kwargs (dict, optional): Extra keyword arguments forwarded to \
+            the distance strategy creation for custom metrics.
         """
         # Initialize the superclass with datasets and settings
         super().__init__(
             original,
             synthetic,
-            distance_metric=distance_metric,
-            distance_metric_args=distance_metric_args,
+            distance_strategy=distance_strategy,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            **kwargs,
         )
 
-        # Validate that distance_metric is set
-        if distance_metric is None:
-            raise ValueError("Parameter 'distance_metric' is required in DCRCalculator.")
-
-        # Define distance metric and feature weights for calculations
-        self.distance_metric = distance_metric
+        # Define feature weights for calculations
         transformed_feature_count = self.original.transformed_data.shape[1]
         if weights is None:
             self.weights = np.ones(transformed_feature_count)
@@ -70,6 +64,7 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
         original = self.original.transformed_data
         synthetic = self.synthetic.transformed_data
 
+        # TODO: Check if this is correct (I think not)
         # Apply feature weights to both datasets
         weighted_original_data = original * self.weights
         weighted_synthetic_data = synthetic * self.weights

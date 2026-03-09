@@ -1,9 +1,8 @@
-from collections.abc import Callable
-
 import pandas as pd
 
+from ....utils.distance.strategies import DistanceStrategy
+from ....utils.distance.strategy_factory import DistanceStrategyFactory
 from ..privacy_metric_calculator import PrivacyMetricCalculator
-from .util import custom_cdist
 
 
 class DistancePrivacyMetricCalculator(PrivacyMetricCalculator):
@@ -21,27 +20,26 @@ class DistancePrivacyMetricCalculator(PrivacyMetricCalculator):
         Name for the original dataset.
     synthetic_name : str, optional
         Name for the synthetic dataset.
-    distance_metric : str or callable, optional
-        The distance metric to use for calculations (default: 'euclidean').
-    distance_metric_args : dict, optional
-        Keyword arguments forwarded to ``custom_cdist``.
+    distance_strategy : str | DistanceStrategy, optional
+        The distance strategy to use for calculations (default: 'euclidean').
+    **kwargs : dict, optional
+        Keyword arguments forwarded the distance strategy creation.
     """
 
     def __init__(
         self,
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
-        distance_metric: str | Callable = "euclidean",
-        distance_metric_args: dict | None = None,
+        distance_strategy: str | DistanceStrategy = "euclidean",
         original_name: str = None,
         synthetic_name: str = None,
+        **kwargs,
     ):
         super().__init__(original, synthetic, original_name, synthetic_name)
-        assert distance_metric is not None, "Parameter 'distance_metric' is required."
-        self.distance_metric = distance_metric
-
-        metric_args = distance_metric_args
-        self.distance_metric_args = metric_args.copy() if metric_args else {}
+        if isinstance(distance_strategy, str):
+            self.distance_strategy = DistanceStrategyFactory.create(distance_strategy, **kwargs)
+        else:
+            self.distance_strategy = distance_strategy
 
     def compute_cdist(self, XA, XB, *, out=None, **kwargs):
         """
@@ -56,24 +54,25 @@ class DistancePrivacyMetricCalculator(PrivacyMetricCalculator):
         out : ndarray, optional
             Output array as in ``scipy.spatial.distance.cdist``.
         **kwargs
-            Extra keyword arguments merged on top of ``distance_metric_args``.
+            Extra keyword arguments for the metric calculation.
 
         Returns
         -------
         ndarray
             Pairwise distance matrix.
         """
-        metric_kwargs = {**self.distance_metric_args, **kwargs}
-        return custom_cdist(XA, XB, metric=self.distance_metric, out=out, **metric_kwargs)
+        return self.distance_strategy.cdist(XA, XB, out=out, **kwargs)
 
-    def set_metric(self, metric: str | Callable, metric_args: dict | None = None):
+    def set_metric(self, distance_strategy: str | DistanceStrategy, **kwargs):
         """
         Sets or updates the distance metric.
 
         Parameters:
-            metric (str or callable): The distance metric to use in DCR calculation.
-            metric_args (dict, optional): Additional keyword arguments forwarded to \
-                the distance metric function.
+            distance_strategy (str or DistanceStrategy): The distance strategy to use.
+            **kwargs (dict, optional): Additional keyword arguments forwarded to \
+                the distance strategy creation if distance_strategy is string.
         """
-        self.distance_metric = metric
-        self.distance_metric_args = metric_args if metric_args else {}
+        if isinstance(distance_strategy, str):
+            self.distance_strategy = DistanceStrategyFactory.create(distance_strategy, **kwargs)
+        else:
+            self.distance_strategy = distance_strategy

@@ -112,6 +112,7 @@ class PrivacyMetricCalculator(ABC):
         # Initialize DatasetManager with original and synthetic data and their names
         manager = DatasetManager.from_dataframes(original, synthetic, original_name, synthetic_name)
 
+        # TODO: Check if data transformation should be done here or left to the user
         # Configure the transformer and scaler to apply transformations to datasets
         manager.set_hypertransformer()
 

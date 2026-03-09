@@ -1,7 +1,7 @@
-from collections.abc import Callable
-
 import numpy as np
 import pandas as pd
+
+from privacy_utility_framework.utils.distance.strategies import DistanceStrategy
 
 from .distance_privacy_metric_calculator import DistancePrivacyMetricCalculator
 
@@ -13,8 +13,8 @@ class NNDRCalculator(DistancePrivacyMetricCalculator):
         synthetic: pd.DataFrame,
         original_name: str = None,
         synthetic_name: str = None,
-        distance_metric: str | Callable = "euclidean",
-        distance_metric_args: dict | None = None,
+        distance_strategy: str | DistanceStrategy = "euclidean",
+        **kwargs,
     ):
         """
         Initialize the NNDRCalculator with original and synthetic datasets and a distance metric.
@@ -24,26 +24,19 @@ class NNDRCalculator(DistancePrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             original_name (str, optional): Name for the original dataset (default: None).
             synthetic_name (str, optional): Name for the synthetic dataset (default: None).
-            distance_metric (str or callable): The metric for calculating distances.
-            distance_metric_args (dict, optional): Extra keyword arguments forwarded to
-                ``custom_cdist`` for custom string/callable metrics.
+            distance_strategy (str or DistanceStrategy): The strategy for calculating distances.
+            **kwargs (dict, optional): Extra keyword arguments forwarded to
+                the distance strategy creation for custom metrics.
         """
         # Initialize the superclass with datasets and settings
         super().__init__(
             original,
             synthetic,
-            distance_metric=distance_metric,
-            distance_metric_args=distance_metric_args,
+            distance_strategy=distance_strategy,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            **kwargs,
         )
-
-        # Validate that distance_metric is set
-        if distance_metric is None:
-            raise ValueError("Parameter 'distance_metric' is required in NNDRCalculator.")
-
-        # Define distance metric
-        self.distance_metric = distance_metric
 
     def evaluate(self) -> float:
         """
