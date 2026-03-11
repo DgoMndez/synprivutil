@@ -3,9 +3,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
+import numpy as np
 import pandas as pd
+from humanize import naturalsize
 from rdt import HyperTransformer
 from scipy.spatial import distance
+from sklearn.neighbors import NearestNeighbors
 
 from privacy_utility_framework.dataset.transformers import QuantileRDTransformer
 
@@ -20,6 +23,7 @@ class DistanceStrategy(ABC):
     """Strategy interface for distance computation (single samples, pairwise or matrix)."""
 
     canonical_name = None
+    _max_size = 1 << 28  # Default maximum size for cdist distance matrices: 512MiB
 
     def __init__(self, default_args: dict | None = None):
         """
@@ -30,6 +34,16 @@ class DistanceStrategy(ABC):
                 dist, cdist and pdist. Defaults to None.
         """
         self.metric_args = default_args.copy() if default_args else {}
+
+    @property
+    def max_size(self) -> int:
+        """Maximum supported size of cdist distance matrices. Defaults to 512MiB."""
+        return self._max_size
+
+    @max_size.setter
+    def max_size(self, value: int):
+        """Set maximum supported size of cdist distance matrices."""
+        self._max_size = value
 
     @property
     def default_metric_args(self) -> dict:
@@ -61,7 +75,7 @@ class DistanceStrategy(ABC):
         return distance.squareform(d, force="tovector", checks=False)
 
     @abstractmethod
-    def cdist(self, XA, XB, *, out=None, **kwargs):
+    def _cdist(self, XA, XB, *, out=None, **kwargs):
         """Compute pairwise distances between XA and XB."""
         # Default implementation based on dist
         # Overriding for efficiency is recommended
@@ -69,6 +83,131 @@ class DistanceStrategy(ABC):
         if kwargs:
             metric_args.update(kwargs)
         return distance.cdist(XA, XB, metric=lambda u, v: self.dist(u, v, **metric_args), out=out)
+
+    def cdist(self, XA, XB, *, out=None, **kwargs):
+        """Compute pairwise distances between XA and XB, checking size constraints."""
+        nA, nB = len(XA), len(XB)
+        aux = nA * nB << 4  # (double precision = python float)
+        if aux > self.max_size:
+            raise UserWarning(
+                f"Requested distance matrix of size {nA} x {nB} exceeds \
+                    maximum supported size of {naturalsize(self.max_size, binary=True)}. "
+                "Consider using a strategy with a larger max_size or reducing the input sizes."
+            )
+        return self._cdist(XA, XB, out=out, **kwargs)
+
+    _AGGREGATION_METHODS = {"min", "max", "mean", "sum"}
+    _AGGREGATION_ALIASES = {
+        "average": "mean",
+        "avg": "mean",
+        "nanmean": "mean",
+    }
+    _NEUTRAL_AGGREGATION_VALUES = {
+        "min": np.inf,
+        "max": -np.inf,
+        "sum": 0.0,
+        "mean": np.nan,  # Will be ignored in mean aggregation when ignoring self-distances
+    }
+
+    def _aggregate_single_array(self, arr, method="min", out=None, axis=1):
+        """
+        Auxiliary private method to aggregate an array along a given axis \
+            using the specified method.
+        """
+        if method == "min":
+            return np.min(arr, out=out, axis=axis)
+        elif method == "max":
+            return np.max(arr, out=out, axis=axis)
+        elif method == "mean":
+            return np.nanmean(arr, out=out, axis=axis)
+        elif method == "sum":
+            return np.sum(arr, out=out, axis=axis)
+
+    def _process_and_aggregate_cdist(
+        self, d, same=False, method="min", bidirectional=False, out=None
+    ):
+        """Auxiliary private method to process the distance matrix (e.g., ignore self-distances) \
+            and aggregate it along a given axis using the specified method."""
+        if same:
+            np.fill_diagonal(d, self._NEUTRAL_AGGREGATION_VALUES[method])
+        rA = self._aggregate_single_array(d, method=method, out=out, axis=1)
+        if bidirectional:
+            # Assumes symmetry
+            rB = self._aggregate_single_array(d, method=method, out=out, axis=0)
+            return np.array([rA, rB])
+        else:
+            return rA
+
+    def aggregate_cdist(self, XA, XB, same=False, bidirectional=False, method="min", **kwargs):
+        """Compute aggregated distance from each row of XA to rows of XB using cdist.
+        
+        Args:
+            XA: First input array.
+            XB: Second input array.
+            same: Whether XA and XB are the same dataset (default: False). If True, \
+                self-distances, that form the diagonal of the distance matrix, will be ignored.
+            bidirectional: Whether to also compute aggregated distances from XB to XA \
+                (default: False).
+            method: Aggregation method to apply to distances ('min' or 'mean', default: 'min').
+            **kwargs: Additional keyword arguments for the cdist method.
+        Returns:
+            An array of shape (len(XA),) containing the aggregated distance from each row of XA \
+                to rows of XB. If bidirectional is True, returns a tuple of the two arrays: \
+                (distances from XA to XB, distances from XB to XA).
+        """
+        method = self._AGGREGATION_ALIASES.get(method, method)
+        assert method in self._AGGREGATION_METHODS, f"Unsupported aggregation method: {method}"
+        c_size = len(XA) * len(XB) << 4
+        if c_size <= self.max_size:
+            return self._process_and_aggregate_cdist(
+                self.cdist(XA, XB, **kwargs), same=same, method=method, bidirectional=bidirectional
+            )
+        else:
+            rA = np.full(len(XA), self._NEUTRAL_AGGREGATION_VALUES[method])
+            batch_size = max(1, self.max_size >> 4 // len(XB))  # Max number of rows of XA per batch
+            for k in range(0, len(XA), batch_size):
+                x = XA[k : k + batch_size]
+                d = self.cdist(x, XB, **kwargs)  # d[i,j] = dist(x[k+i], XB[j])
+                if same:  # Ignore self-distance
+                    for j in range(len(x)):  # last batch may be smaller than batch_size
+                        if k + j < len(XA) and k + j < len(XB):
+                            d[j, k + j] = self._NEUTRAL_AGGREGATION_VALUES[method]
+                rA[k : k + batch_size] = self._aggregate_single_array(d, method=method, axis=1)
+            if bidirectional:
+                rB = np.full(len(XB), self._NEUTRAL_AGGREGATION_VALUES[method])
+                for k in range(0, len(XB), batch_size):
+                    x = XB[k : k + batch_size]
+                    d = self.cdist(x, XA, **kwargs)  # d[i,j] = dist(x[k+i], XA[j])
+                    if same:
+                        for j in range(len(x)):
+                            if k + j < len(XB) and k + j < len(XA):
+                                d[j, k + j] = self._NEUTRAL_AGGREGATION_VALUES[method]
+                    rB[k : k + batch_size] = self._aggregate_single_array(d, method=method, axis=1)
+                return np.array([rA, rB])
+            return rA
+
+    def min_cdist(self, XA, XB, same=False, bidirectional=False, **kwargs):
+        """Compute minimum distance from each row of XA to any row of XB.
+        
+        Args:
+            XA: First input array.
+            XB: Second input array.
+            same: Whether XA and XB are the same dataset (default: False). If True, \
+                self-distances, that form the diagonal of the distance matrix, will be ignored.
+            bidirectional: Whether to also compute minimum distances from XB to XA (default: False).
+            **kwargs: Additional keyword arguments for the cdist method.
+        Returns:
+            An array of shape (len(XA),) containing the minimum distance from each row of XA \
+                to any row of XB.
+        """
+        # TODO: Efficient bidirectional calculation assuming symmetry (not needed currently)
+        return self.aggregate_cdist(
+            XA, XB, same=same, bidirectional=bidirectional, method="min", **kwargs
+        )
+
+    def mean_cdist(self, XA, XB, same=False, **kwargs):
+        """Compute mean distance from each row of XA to all rows of XB."""
+        return self.aggregate_cdist(XA, XB, same=same, method="mean", **kwargs)
 
     @property
     def supports_sklearn_nn(self) -> bool:
@@ -84,6 +223,27 @@ class DistanceStrategy(ABC):
     def sklearn_metric_params(self) -> dict | None:
         """Metric parameters compatible with sklearn NearestNeighbors."""
         return None
+
+    @abstractmethod
+    def nearest_neighbors(self, X_source, X_target=None, k=1, **kwargs):
+        """
+        Find nearest neighbors in X_source for each sample in X_target, using this distance metric.
+        
+        Args:
+            X_source: Source input array. Nearest neighbors will be searched within this array.
+            X_target: Target input array. If None, neighbors will be searched within X_source \
+                (default: None).
+            k: Number of nearest neighbors to find (default: 1).
+            **kwargs: Additional keyword arguments for the nearest neighbors method.
+        Returns:
+            A tuple (distances, indices) where distances[i,j] is the distance from X_target[i] to \
+                its j-th nearest neighbor in X_source, and indices[i,j] is the index of \
+                    that neighbor in X_source.
+        """
+        model = NearestNeighbors(n_neighbors=k, metric=self.dist, **kwargs)
+        model.fit(X_source)
+        distances, indices = model.kneighbors(X_target)
+        return distances, indices
 
 
 class ScipyDistanceStrategy(DistanceStrategy):
@@ -108,7 +268,7 @@ class ScipyDistanceStrategy(DistanceStrategy):
         metric = metric_kwargs.pop("metric", self._metric)
         return distance.pdist(X, metric=metric, out=out, **metric_kwargs)
 
-    def cdist(self, XA, XB, *, out=None, **kwargs):
+    def _cdist(self, XA, XB, *, out=None, **kwargs):
         metric_kwargs = {**self.metric_args, **kwargs}
         metric = metric_kwargs.pop("metric", self._metric)
         return distance.cdist(XA, XB, metric=metric, out=out, **metric_kwargs)
@@ -149,7 +309,7 @@ class TransformedDistanceStrategy(DistanceStrategy):
         self._base_metric = base_metric
         self._hypertransformer = hypertransformer
 
-    def cdist(self, XA, XB, base_metric: str | Callable = None, out=None, **kwargs):
+    def _cdist(self, XA, XB, base_metric: str | Callable = None, out=None, **kwargs):
         metric_kwargs = self.metric_args.copy()
         if kwargs:
             metric_kwargs.update(kwargs)
@@ -227,7 +387,7 @@ class QuantileDistanceStrategy(DistanceStrategy):
             **kwargs,
         )
 
-    def cdist(self, XA, XB, base_metric: str | Callable = None, out=None, **kwargs):
+    def _cdist(self, XA, XB, base_metric: str | Callable = None, out=None, **kwargs):
         metric_kwargs = {**self.metric_args, **kwargs}
         base_metric = base_metric or metric_kwargs.pop("base_metric", self._base_metric)
 
@@ -297,7 +457,7 @@ class CustomDistanceStrategy(DistanceStrategy):
         else:
             return super().dist(u, v, **metric_kwargs)
 
-    def cdist(self, XA, XB, *, out=None, **kwargs):
+    def _cdist(self, XA, XB, *, out=None, **kwargs):
         metric_kwargs = {**self.metric_args, **kwargs}
         return custom_cdist(XA, XB, metric=self._metric, out=out, **metric_kwargs)
 
