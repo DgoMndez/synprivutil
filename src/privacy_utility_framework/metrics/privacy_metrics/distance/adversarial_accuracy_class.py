@@ -1,13 +1,7 @@
-from collections.abc import Callable
-
 import numpy as np
 import pandas as pd
-from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
-from privacy_utility_framework.metrics.privacy_metrics.privacy_metric_calculator import (
-    PrivacyMetricCalculator,
-)
 from privacy_utility_framework.utils.distance.strategies import DistanceStrategy
 
 from .distance_privacy_metric_calculator import (
@@ -97,15 +91,13 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
 
         for i in range(2):
             for j in range(2):
-                d = self.compute_cdist(aux_list[i], aux_list[j])
-                if i == j:
-                    np.fill_diagonal(d, np.inf)  # Ignore self-distances for same dataset
-                min_distances[i][j, :] = np.min(d, axis=1)
-
+                min_distances[i][j, :] = self.distance_strategy.min_cdist(
+                    aux_list[i], aux_list[j], same=(i == j)
+                )
         return min_distances[0], min_distances[1]
 
 
-class AdversarialAccuracyCalculator_NN(PrivacyMetricCalculator):
+class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
     """
     Calculate nearest neighbors and adversarial accuracy metrics for original and synthetic \
         datasets using Nearest Neighbors (may be faster in some cases).
@@ -115,7 +107,7 @@ class AdversarialAccuracyCalculator_NN(PrivacyMetricCalculator):
         self,
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
-        distance_metric: str | Callable = "euclidean",
+        distance_strategy: str | DistanceStrategy = "euclidean",
         original_name: str = None,
         synthetic_name: str = None,
         **kwargs,
@@ -133,11 +125,11 @@ class AdversarialAccuracyCalculator_NN(PrivacyMetricCalculator):
         super().__init__(
             original,
             synthetic,
+            distance_strategy=distance_strategy,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            **kwargs,
         )
-        self.distance_metric = distance_metric
-        self.distance_metric_args = kwargs.copy() if kwargs else {}
 
         # Define data for calculation
         self.data = {
@@ -155,22 +147,15 @@ class AdversarialAccuracyCalculator_NN(PrivacyMetricCalculator):
             s (str): Source dataset name ('original' or 'synthetic').
 
         Returns:
-            tuple: (target dataset, source dataset, distances).
+            distances (ndarray): Array of nearest neighbor distances from dataset t to dataset s.
         """
 
-        nn_s = NearestNeighbors(
-            n_neighbors=1,
-            metric=self.distance_metric,
-            metric_params=self.distance_metric_args,
-        ).fit(self.data[s])
         if t == s:
-            # Find distances within the same dataset
-            d = nn_s.kneighbors()[0]
+            d, _ = self.distance_strategy.nearest_neighbors(self.data[s], None)
         else:
-            # Find distances between different datasets
-            d = nn_s.kneighbors(self.data[t])[0]
+            d, _ = self.distance_strategy.nearest_neighbors(self.data[s], self.data[t])
 
-        return t, s, d
+        return d
 
     def _compute_nn(self):
         """Compute nearest neighbors for all pairs of original and synthetic datasets."""
@@ -181,7 +166,7 @@ class AdversarialAccuracyCalculator_NN(PrivacyMetricCalculator):
             ("synthetic", "original"),
         ]
         for t, s in tqdm(pairs):
-            t, s, d = self._nearest_neighbors(t, s)
+            d = self._nearest_neighbors(t, s)
             self.dists[(t, s)] = d
 
     def _adversarial_accuracy(self):

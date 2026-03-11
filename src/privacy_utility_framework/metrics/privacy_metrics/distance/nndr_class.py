@@ -52,12 +52,11 @@ class NNDRCalculator(DistancePrivacyMetricCalculator):
         synthetic = self.synthetic.transformed_data
 
         # Compute distances from each synthetic record to all original records
-        distances = self.compute_cdist(synthetic, original)
+        distances, indices = self.distance_strategy.nearest_neighbors(synthetic, original, k=2)
 
         # Find the nearest and second nearest distances for each synthetic record
-        partitioned_distances = np.partition(distances, 1, axis=1)[:, :2]
-        nearest_distances = partitioned_distances[:, 0]
-        second_nearest_distances = partitioned_distances[:, 1]
+        nearest_distances = distances[:, 0]
+        second_nearest_distances = distances[:, 1]
 
         # Calculate the NNDR for each synthetic record
         nndr_list = nearest_distances / (second_nearest_distances + 1e-16)  # Avoid division by zero

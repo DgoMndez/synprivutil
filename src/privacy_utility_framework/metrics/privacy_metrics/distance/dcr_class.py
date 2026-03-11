@@ -69,9 +69,9 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
         weighted_original_data = original * self.weights
         weighted_synthetic_data = synthetic * self.weights
 
-        # Compute pairwise distances between synthetic and original data
-        dists = self.compute_cdist(weighted_synthetic_data, weighted_original_data)
+        # Compute minimum distances between synthetic and original data
+        min_distances = self.distance_strategy.min_cdist(
+            weighted_synthetic_data, weighted_original_data
+        )
 
-        # Find and average the minimum distances for each synthetic record
-        min_distances = np.min(dists, axis=1)
         return np.mean(min_distances)

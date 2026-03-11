@@ -41,7 +41,7 @@ class DistancePrivacyMetricCalculator(PrivacyMetricCalculator):
         else:
             self.distance_strategy = distance_strategy
 
-    def compute_cdist(self, XA, XB, *, out=None, **kwargs):
+    def cdist(self, XA, XB, *, out=None, **kwargs):
         """
         Compute pairwise distances using the configured distance metric.
 

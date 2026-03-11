@@ -1,3 +1,4 @@
+import time
 import warnings
 from pathlib import Path
 
@@ -79,9 +80,12 @@ def nnaa_example():
             print(f"~~~~~~Adversarial Accuracy CDIST~~~~~~ {orig, syn}")
 
             try:
+                t0 = time.time()
                 calculator_cdist = AdversarialAccuracyCalculator(original_data, synthetic_data)
                 nnaa1 = calculator_cdist.evaluate()
+                t1 = time.time()
                 print(nnaa1)
+                print(f"Time taken for CDIST NNAA: {t1 - t0:.2f} seconds")
             except Exception as e:
                 print(f"Error calculating NNAA with CDIST for {orig, syn}: {e}")
 
@@ -159,8 +163,8 @@ def privacy_metric_manager_example():
 
 def privacy_metric_manager_quantile_example():
     print("~~~~~~~~~PRIVACY METRICS (QUANTILE DISTANCE)~~~~~~~~~~")
-    datasets = ["diabetes", "insurance"]
-    synthetizers = ["copulagan", "ctgan", "gaussian_copula", "gmm", "tvae", "random"]
+    datasets = ["diabetes", "insurance", "cardio"]
+    synthetizers = ["copulagan", "ctgan"]
 
     for orig in datasets:
         for syn in synthetizers:
@@ -208,6 +212,14 @@ def privacy_metric_manager_quantile_example():
                     distance_strategy="quantile",
                     **quantile_metric_args,
                 ),
+                AdversarialAccuracyCalculator_NN(
+                    original_data,
+                    synthetic_data,
+                    original_name=original_name,
+                    synthetic_name=synthetic_name,
+                    distance_strategy="quantile",
+                    **quantile_metric_args,
+                ),
             ]
             p.add_metric(metric_list)
             results = p.evaluate_all()
@@ -215,9 +227,9 @@ def privacy_metric_manager_quantile_example():
                 print(f"{key}: {value}")
 
 
-dcr_example()
-nndr_example()
-nnaa_example()
-privacy_metric_manager_example()
+# dcr_example()
+# nndr_example()
+# nnaa_example()
+# privacy_metric_manager_example()
 privacy_metric_manager_quantile_example()
 # disco_new()
