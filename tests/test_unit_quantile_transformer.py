@@ -32,7 +32,7 @@ def test_quantile_rd_transformer():
         transformed_data = transformer.transform(data)
 
         # ECDF expected values: [0.1, 0.2, ..., 1.0] = [(r_i + 1 )/ N]
-        # Sklearn's QuantileTransformer expected values:
+        # Sklearn's QuantileTransformer expected values (interpolation):
         # [0, 0.11, 0.22, ..., 1.0] = [r_i / (N-1)]
 
         y = np.linspace(0, 1, N)

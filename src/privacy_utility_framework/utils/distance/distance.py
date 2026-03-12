@@ -10,7 +10,7 @@ Date: 27/02/2026
 # TODO:
 # DONE 1. Integrate strategies into privacy/similarity metrics.
 # 2. QuantileDistanceStrategy test
-# 3. cdist Matrix bug
+# DONE 3. cdist Matrix bug
 # 4. ECDF-transformer with tests
 
 from collections.abc import Callable
@@ -20,7 +20,7 @@ import pandas as pd
 from rdt import HyperTransformer
 from scipy.spatial import distance
 
-from privacy_utility_framework.dataset.transformers import QuantileRDTransformer
+from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileRDTransformer
 
 
 def _to_2d_array(data):
@@ -60,6 +60,15 @@ def _get_quantile_hypertransformer(
     original_data, qt_factory=QuantileRDTransformer, output_distribution="uniform", **kwargs
 ):
     transformer = qt_factory(output_distribution=output_distribution, **kwargs)
+    hypertransformer = HyperTransformer()
+    hypertransformer._learn_config(original_data)
+    hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
+    hypertransformer.fit(original_data)
+    return hypertransformer
+
+
+def _get_ecdf_hypertransformer(original_data, ecdf_factory=ECDFTransformer, **kwargs):
+    transformer = ecdf_factory(**kwargs)
     hypertransformer = HyperTransformer()
     hypertransformer._learn_config(original_data)
     hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
@@ -264,8 +273,8 @@ def quantile_cdist(
     Calculate distances after a copula-style marginal Cumulative Distribution Function (CDF) or \
         Probability Integral Transform (PIT), a.k.a. Quantile transformation, i.e.:
     
-    d(x,y) = d(\Phi^-1(F(x)), \Phi^-1(F(y))) where F is the column-wise estimated CDF of the \
-        pooled data and \Phi^-1 is the column-wise inverse of the CDF of the target distribution.
+    d(x,y) = d(\\Phi^-1(F(x)), \\Phi^-1(F(y))) where F is the column-wise estimated CDF of the \
+        pooled data and \\Phi^-1 is the column-wise inverse of the CDF of the target distribution.
 
     It fits a QuantileRDTransformer on original data, applies the transformation to both \
         dataframe arguments and then computes the distance in the transformed space.
@@ -317,6 +326,87 @@ def quantile_cdist(
     return distance.cdist(XA_transformed, XB_transformed, metric=base_metric, out=out, **kwargs)
 
 
+def ecdf_dist(
+    u,
+    v,
+    *,
+    original_data,
+    base_metric: str | Callable = "euclidean",
+    ecdf_factory=ECDFTransformer,
+    **kwargs,
+):
+    """Compute distance between two 1-D arrays after ECDF transformation."""
+    return ecdf_cdist(
+        np.asarray([u]),
+        np.asarray([v]),
+        base_metric=base_metric,
+        original_data=original_data,
+        ecdf_factory=ecdf_factory,
+        **kwargs,
+    )[0][0]
+
+
+def ecdf_pdist(
+    X,
+    *,
+    original_data,
+    base_metric: str | Callable = "euclidean",
+    ecdf_factory=ECDFTransformer,
+    **kwargs,
+):
+    """Compute pairwise distances between rows of X after ECDF transformation."""
+    if original_data is None:
+        assert isinstance(X, pd.DataFrame), (
+            "X must be a DataFrame if original_data is not provided."
+        )
+        original_data = X
+
+    X = _to_dataframe(X, original_data.columns)
+    assert X.shape[1] == original_data.shape[1], (
+        "X and original_data must have the same number of columns."
+    )
+
+    hypertransformer = _get_ecdf_hypertransformer(
+        original_data=original_data,
+        ecdf_factory=ecdf_factory,
+    )
+    X_transformed = hypertransformer.transform(X)
+    return distance.pdist(X_transformed, metric=base_metric, **kwargs)
+
+
+def ecdf_cdist(
+    XA,
+    XB,
+    base_metric="euclidean",
+    original_data=None,
+    ecdf_factory=ECDFTransformer,
+    *,
+    out=None,
+    **kwargs,
+):
+    """Calculate distances after column-wise ECDF transformation."""
+    if original_data is None:
+        if isinstance(XA, pd.DataFrame):
+            original_data = XA
+        else:
+            raise ValueError("XA must be a pandas DataFrame when original_data = None.")
+
+    XA = _to_dataframe(XA, original_data.columns)
+    XB = _to_dataframe(XB, original_data.columns)
+
+    assert XA.shape[1] == XB.shape[1] == original_data.shape[1], (
+        "XA, XB, and original_data must have the same number of columns."
+    )
+
+    hypertransformer = _get_ecdf_hypertransformer(
+        original_data=original_data,
+        ecdf_factory=ecdf_factory,
+    )
+    XA_transformed = hypertransformer.transform(XA)
+    XB_transformed = hypertransformer.transform(XB)
+    return distance.cdist(XA_transformed, XB_transformed, metric=base_metric, out=out, **kwargs)
+
+
 # Registry of custom metrics
 _METRIC_INFOS = [
     {
@@ -332,6 +422,13 @@ _METRIC_INFOS = [
         "dist_func": quantile_dist,
         "cdist_func": quantile_cdist,
         "pdist_func": quantile_pdist,
+    },
+    {
+        "canonical_name": "ecdf",
+        "aka": {"ecdf"},
+        "dist_func": ecdf_dist,
+        "cdist_func": ecdf_cdist,
+        "pdist_func": ecdf_pdist,
     },
 ]
 

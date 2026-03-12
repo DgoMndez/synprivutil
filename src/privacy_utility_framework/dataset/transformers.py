@@ -13,6 +13,22 @@ from rdt.transformers import BaseTransformer
 from sklearn.preprocessing import MinMaxScaler, QuantileTransformer
 
 
+def _get_num_rows(data):
+    if isinstance(data, (pd.Series | pd.DataFrame | np.ndarray)):
+        return len(data)
+
+    return np.asarray(data).shape[0]
+
+
+def _ensure_2d(data):
+    if isinstance(data, pd.Series):
+        return data.values.reshape(-1, 1)
+    if isinstance(data, np.ndarray) and data.ndim == 1:
+        return data.reshape(-1, 1)
+
+    return data
+
+
 class MinMaxScalerTransformer(BaseTransformer):
     r"""
     RDT-compatible wrapper for sklearn's MinMaxScaler.
@@ -162,24 +178,8 @@ class QuantileRDTransformer(BaseTransformer):
         self._random_state = qtransformer.random_state
         self._fitted = False
 
-    @staticmethod
-    def _get_num_rows(data):
-        if isinstance(data, (pd.Series | pd.DataFrame | np.ndarray)):
-            return len(data)
-
-        return np.asarray(data).shape[0]
-
-    @staticmethod
-    def _ensure_2d(data):
-        if isinstance(data, pd.Series):
-            return data.values.reshape(-1, 1)
-        if isinstance(data, np.ndarray) and data.ndim == 1:
-            return data.reshape(-1, 1)
-
-        return data
-
     def _build_transformer(self, data):
-        n_rows = self._get_num_rows(data)
+        n_rows = _get_num_rows(data)
         if self._n_quantiles is None or self._n_quantiles <= 0:
             self._n_quantiles = n_rows
         if self._subsample is not None and self._subsample <= 0:
@@ -193,19 +193,174 @@ class QuantileRDTransformer(BaseTransformer):
         )
 
     def _fit(self, data):
-        data = self._ensure_2d(data)
+        data = _ensure_2d(data)
         self._build_transformer(data)
         self._qtransformer.fit(data)
         self._fitted = True
 
     def _transform(self, data):
         assert self._fitted, "QuantileRDTransformer must be fitted before calling transform."
-        data = self._ensure_2d(data)
+        data = _ensure_2d(data)
         return self._qtransformer.transform(data)
 
     def _reverse_transform(self, data):
         assert self._fitted, (
             "QuantileRDTransformer must be fitted before calling reverse_transform."
         )
-        data = self._ensure_2d(data)
+        data = _ensure_2d(data)
         return self._qtransformer.inverse_transform(data)
+
+
+class ECDFTransformer(BaseTransformer):
+    """
+    RDT-compatible wrapper for Empirical Cumulative Distribution Function (ECDF) transformation.
+
+    This transformer maps numeric features to their ECDF values, transforming data into a \
+        uniform distribution on [0, 1]. For each value x_j in the fitted column:
+    
+    y_j = F^(x_j) = r_j / N,
+    
+    where r_j is the rank of x_j in the fitted data, and N is the total number of samples.
+
+    This transformer is designed to work on single columns following RDT's pattern \
+        (data is passed as pd.Series when called via fit(data, column="col_name")).
+
+    Attributes:
+        _sorted_values (numpy array): Sorted values from the fitted column.
+        _n_samples (int): Number of samples used during fitting.
+    """
+
+    INPUT_SDTYPE = "numerical"
+    SUPPORTED_SDTYPES = ["numerical"]
+    OUTPUT_SDTYPES = {"value": "numerical"}
+
+    def __init__(self, subsample: int = 0, random_state=None):
+        r"""
+        Initialize the ECDFTransformer.
+
+        Args:
+            subsample (int): If > 0, use subsampling for fitting. Default is 0 (no subsampling).
+            random_state (int or None): Random seed for reproducibility during subsampling.
+        """
+        super().__init__()
+        self._subsample = subsample
+        self._random_state = random_state
+        self._sorted_values = None
+        self._n_samples = None
+        self._fitted = False
+
+    def _fit(self, data):
+        r"""
+        Fit the ECDF transformer to a single column of data.
+
+        Args:
+            data: pandas Series or numpy array (1D) containing the column values.
+
+        Raises:
+            ValueError: If data is multidimensional.
+        """
+        # Convert Series to array if needed
+        if isinstance(data, pd.Series):
+            values = data.values
+        else:
+            values = np.asarray(data)
+
+        # Validate 1D input
+        if values.ndim != 1:
+            raise ValueError(
+                f"ECDFTransformer expects 1D data (single column). "
+                f"Got data with shape {values.shape}. "
+                f"Pass individual columns via fit(data, column='col_name')."
+            )
+
+        n_samples = len(values)
+
+        # Apply subsampling if specified
+        if self._subsample > 0 and self._subsample < n_samples:
+            # Subsample values
+            indices = np.random.RandomState(self._random_state).choice(
+                n_samples, size=self._subsample, replace=False
+            )
+            sampled_values = values[indices]
+            self._n_samples = self._subsample
+        else:
+            sampled_values = values
+            self._n_samples = n_samples
+
+        # Sort and store unique values for ECDF computation
+        self._sorted_values = np.sort(sampled_values)
+        self._fitted = True
+
+    def _transform(self, data):
+        r"""
+        Transform data using the fitted ECDF.
+
+        Args:
+            data: pandas Series or numpy array (1D) to transform.
+
+        Returns:
+            numpy array of shape (n_samples, 1) with ECDF values in [0, 1].
+
+        Raises:
+            AssertionError: If transformer has not been fitted.
+            ValueError: If data is multidimensional.
+        """
+        assert self._fitted, "ECDFTransformer must be fitted before calling transform."
+
+        # Convert Series to array if needed
+        if isinstance(data, pd.Series):
+            values = data.values
+        else:
+            values = np.asarray(data)
+
+        # Validate 1D input
+        if values.ndim != 1:
+            raise ValueError(
+                f"ECDFTransformer expects 1D data (single column). "
+                f"Got data with shape {values.shape}."
+            )
+
+        ranks = np.searchsorted(self._sorted_values, values, side="right")
+        transformed = ranks / self._n_samples
+
+        return transformed.reshape(-1, 1)
+
+    def _reverse_transform(self, data):
+        r"""
+        Reverse the ECDF transformation to recover approximate original values.
+
+        Args:
+            data: pandas Series or numpy array with ECDF values in [0, 1].
+
+        Returns:
+            numpy array of shape (n_samples, 1) with approximate original values.
+
+        Raises:
+            AssertionError: If transformer has not been fitted.
+            ValueError: If data is multidimensional.
+        """
+        assert self._fitted, "ECDFTransformer must be fitted before calling reverse_transform."
+
+        # Convert Series to array if needed
+        if isinstance(data, pd.Series):
+            ecdf_values = data.values
+        else:
+            ecdf_values = np.asarray(data)
+
+        # Validate 1D input
+        if ecdf_values.ndim != 1:
+            raise ValueError(
+                f"ECDFTransformer expects 1D data (single column). "
+                f"Got data with shape {ecdf_values.shape}."
+            )
+
+        # Convert ECDF values [0, 1] back to indices
+        # F(x) = rank/n with rank in [1, n] => index = rank - 1
+        indices = np.floor(ecdf_values * self._n_samples).astype(int) - 1
+        # Clip to valid range [0, n_samples - 1]
+        indices = np.clip(indices, 0, self._n_samples - 1)
+
+        # Retrieve values from sorted array
+        recovered_values = self._sorted_values[indices]
+
+        return recovered_values.reshape(-1, 1)

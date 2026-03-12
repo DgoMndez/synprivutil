@@ -10,9 +10,10 @@ from rdt import HyperTransformer
 from scipy.spatial import distance
 from sklearn.neighbors import NearestNeighbors
 
-from privacy_utility_framework.dataset.transformers import QuantileRDTransformer
+from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileRDTransformer
 
 from .distance import (
+    _get_ecdf_hypertransformer,
     _get_quantile_hypertransformer,
     custom_cdist,
     transformed_cdist,
@@ -517,6 +518,60 @@ class QuantileDistanceStrategy(TransformedDistanceStrategy):
             original_data=value,
             qt_factory=qt_factory or self._qt_factory,
             output_distribution=output_distribution or self._output_distribution,
+        )
+
+
+class ECDFDistanceStrategy(TransformedDistanceStrategy):
+    """Distance strategy that applies an ECDF-based hypertransformer before distance computation."""
+
+    canonical_name = "ecdf"
+
+    def __init__(
+        self,
+        original_data: pd.DataFrame,
+        base_metric="euclidean",
+        ecdf_factory=ECDFTransformer,
+        default_args: dict | None = None,
+        **kwargs,
+    ):
+        """Build an ECDF-based transformed distance strategy from reference data."""
+        self._hypertransformer = _get_ecdf_hypertransformer(
+            original_data=original_data,
+            ecdf_factory=ecdf_factory,
+            **kwargs,
+        )
+        super().__init__(
+            hypertransformer=self._hypertransformer,
+            base_metric=base_metric,
+            default_args=default_args,
+            **kwargs,
+        )
+        self._ecdf_factory = ecdf_factory
+        self._original_data = original_data
+
+    @property
+    def hypertransformer(self):
+        return self._hypertransformer
+
+    @property
+    def base_metric(self):
+        return self._base_metric
+
+    @property
+    def ecdf_factory(self):
+        return self._ecdf_factory
+
+    @property
+    def original_data(self):
+        return self._original_data
+
+    @original_data.setter
+    def original_data(self, value: pd.DataFrame, ecdf_factory=None):
+        """Refit the ECDF hypertransformer on new reference data."""
+        self._original_data = value
+        self._hypertransformer = _get_ecdf_hypertransformer(
+            original_data=value,
+            ecdf_factory=ecdf_factory or self._ecdf_factory,
         )
 
 
