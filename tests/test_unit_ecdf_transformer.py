@@ -27,10 +27,10 @@ def _make_dataframe(values, column="values"):
     return pd.DataFrame({column: np.asarray(values)})
 
 
-def _expected_ecdf(values):
+def _expected_ecdf(values, side="right"):
     values = np.asarray(values)
     sorted_values = np.sort(values)
-    ranks = np.searchsorted(sorted_values, values, side="right")
+    ranks = np.searchsorted(sorted_values, values, side=side)
     res = ranks / len(values)
     assert np.all((res >= 0.0) & (res <= 1.0)), "Expected ECDF values should be in [0, 1]"
     return res
@@ -38,6 +38,32 @@ def _expected_ecdf(values):
 
 class TestECDFTransformerBasicFunctionality:
     """Test basic ECDF transformation functionality."""
+
+    def test_ecdf_trivial_unique(self):
+        """Original [0..9] should map query [-1..10] to [0, 0.1, ..., 1, 1]."""
+        original = _make_dataframe(np.arange(10, dtype=float))
+        query = _make_dataframe(np.arange(-1, 11, dtype=float))
+        transformer = ECDFTransformer()
+
+        transformer.fit(original, column="values")
+        transformed = transformer.transform(query)
+
+        expected = np.concatenate(([0.0], np.arange(1, 11) / 10.0, [1.0]))
+        transformed_values = transformed["values"].to_numpy()
+        assert np.allclose(transformed_values, expected)
+
+    def test_ecdf_trivial_repeated(self):
+        """Same boundary idea as [0..9], but with repeated values in original data."""
+        original = _make_dataframe(np.array([0, 1, 1, 2, 3, 5, 5, 7, 8, 9], dtype=float))
+        query = _make_dataframe(np.arange(-1, 11, dtype=float))
+        transformer = ECDFTransformer()
+
+        transformer.fit(original, column="values")
+        transformed = transformer.transform(query)
+
+        expected = np.array([0, 0.1, 0.3, 0.4, 0.5, 0.5, 0.7, 0.7, 0.8, 0.9, 1, 1])
+        transformed_values = transformed["values"].to_numpy()
+        assert np.allclose(transformed_values, expected)
 
     def test_ecdf_matches_expected_ranks_for_random_unique_samples(self):
         """ECDF should match searchsorted-based expected ranks on random unique data."""
@@ -329,6 +355,190 @@ class TestECDFTransformerMonotonicity:
             transformed_flat = transformed["values"].to_numpy()
             assert np.all(transformed_flat[:-1] <= transformed_flat[1:])
 
+
+class TestECDFTransformerSide:
+    """Test side='right' and side='left' behaviour."""
+
+    def test_invalid_side_raises_valueerror(self):
+        """Passing an unknown side should raise ValueError immediately."""
+        with pytest.raises(ValueError, match="side must be"):
+            ECDFTransformer(side="center")
+
+    def test_right_side_default_matches_explicit(self):
+        """Default constructor and side='right' should produce identical results."""
+        rng = np.random.default_rng(_get_seed())
+        values = rng.normal(size=80)
+        data = _make_dataframe(values)
+
+        t_default = ECDFTransformer()
+        t_right = ECDFTransformer(side="right")
+
+        t_default.fit(data, column="values")
+        t_right.fit(data, column="values")
+
+        assert np.allclose(
+            t_default.transform(data)["values"].to_numpy(),
+            t_right.transform(data)["values"].to_numpy(),
+        )
+
+    def test_right_ecdf_matches_expected_unique(self):
+        """Right ECDF should equal P(X<=x) on unique data."""
+        original = _make_dataframe(np.arange(10, dtype=float))
+        query = _make_dataframe(np.arange(-1, 11, dtype=float))
+        transformer = ECDFTransformer(side="right")
+
+        transformer.fit(original, column="values")
+        transformed = transformer.transform(query)["values"].to_numpy()
+
+        # Query values outside the support first and last: 0.0, then 0.1..1.0, then 1.0
+        expected = np.concatenate(([0.0], np.arange(1, 11) / 10.0, [1.0]))
+        assert np.allclose(transformed, expected)
+
+    def test_left_ecdf_matches_expected_unique(self):
+        """Left ECDF should equal P(X<x) on unique data."""
+        original = _make_dataframe(np.arange(10, dtype=float))
+        query = _make_dataframe(np.arange(-1, 11, dtype=float))
+        transformer = ECDFTransformer(side="left")
+
+        transformer.fit(original, column="values")
+        transformed = transformer.transform(query)["values"].to_numpy()
+
+        # F(-1-)=0, F(0-)=0, F(1-)=0.1, ..., F(9-)=0.9, F(10-)=1.0
+        expected = np.concatenate(([0.0, 0.0], np.arange(1, 10) / 10.0, [1.0]))
+        assert np.allclose(transformed, expected)
+
+    def test_right_vs_left_differ_at_duplicates(self):
+        """For data with duplicates, right and left ECDFs should differ at jump points."""
+        # [0, 1, 1, 2]: duplicated 1 → P(X<=1)=0.75, P(X<1)=0.25
+        original = _make_dataframe(np.array([0.0, 1.0, 1.0, 2.0]))
+        query = _make_dataframe(np.array([1.0]))
+
+        t_right = ECDFTransformer(side="right")
+        t_left = ECDFTransformer(side="left")
+        t_right.fit(original, column="values")
+        t_left.fit(original, column="values")
+
+        assert np.isclose(t_right.transform(query)["values"].to_numpy()[0], 0.75)
+        assert np.isclose(t_left.transform(query)["values"].to_numpy()[0], 0.25)
+
+    def test_right_vs_left_agree_between_jump_points(self):
+        """Between jump points, right and left ECDFs must coincide."""
+        # Unique even grid: 0, 2, 4, ..., 18 (N=10); query at odd midpoints
+        original = _make_dataframe(np.arange(0, 20, 2, dtype=float))
+        query = _make_dataframe(np.arange(1, 18, 2, dtype=float))
+
+        t_right = ECDFTransformer(side="right")
+        t_left = ECDFTransformer(side="left")
+        t_right.fit(original, column="values")
+        t_left.fit(original, column="values")
+
+        assert np.allclose(
+            t_right.transform(query)["values"].to_numpy(),
+            t_left.transform(query)["values"].to_numpy(),
+        )
+
+    def test_right_ecdf_matches_expected_random_unique(self):
+        """Right ECDF on random unique data should match _expected_ecdf(side='right')."""
+        rng = np.random.default_rng(_get_seed())
+        for size in [15, 60, 200]:
+            values = rng.choice(np.arange(size * 10, dtype=float), size=size, replace=False)
+            data = _make_dataframe(values)
+            transformer = ECDFTransformer(side="right")
+
+            transformer.fit(data, column="values")
+            transformed = transformer.transform(data)["values"].to_numpy()
+
+            assert np.allclose(transformed, _expected_ecdf(values, side="right"))
+
+    def test_left_ecdf_matches_expected_random_unique(self):
+        """Left ECDF on random unique data should match _expected_ecdf(side='left')."""
+        rng = np.random.default_rng(_get_seed())
+        for size in [15, 60, 200]:
+            values = rng.choice(np.arange(size * 10, dtype=float), size=size, replace=False)
+            data = _make_dataframe(values)
+            transformer = ECDFTransformer(side="left")
+
+            transformer.fit(data, column="values")
+            transformed = transformer.transform(data)["values"].to_numpy()
+
+            assert np.allclose(transformed, _expected_ecdf(values, side="left"))
+
+    def test_right_ecdf_matches_expected_random_integers(self):
+        """Right ECDF on random integers (with duplicates) matches _expected_ecdf(side='right')."""
+        rng = np.random.default_rng(_get_seed())
+        for size in [20, 50, 100]:
+            values = rng.integers(-20, 20, size=size)
+            data = _make_dataframe(values.astype(float))
+            transformer = ECDFTransformer(side="right")
+
+            transformer.fit(data, column="values")
+            transformed = transformer.transform(data)["values"].to_numpy()
+
+            assert np.allclose(transformed, _expected_ecdf(values, side="right"))
+
+    def test_left_ecdf_matches_expected_random_integers(self):
+        """Left ECDF on random integers (with duplicates) matches _expected_ecdf(side='left')."""
+        rng = np.random.default_rng(_get_seed())
+        for size in [20, 50, 100]:
+            values = rng.integers(-20, 20, size=size)
+            data = _make_dataframe(values.astype(float))
+            transformer = ECDFTransformer(side="left")
+
+            transformer.fit(data, column="values")
+            transformed = transformer.transform(data)["values"].to_numpy()
+
+            assert np.allclose(transformed, _expected_ecdf(values, side="left"))
+
+    def test_left_ecdf_minimum_value_maps_to_zero(self):
+        """The minimum value must have left-ECDF = 0 (no element is strictly less)."""
+        values = np.array([3.0, 1.0, 4.0, 1.0, 5.0, 9.0])
+        data = _make_dataframe(values)
+        transformer = ECDFTransformer(side="left")
+
+        transformer.fit(data, column="values")
+        transformed = transformer.transform(data)["values"].to_numpy()
+
+        assert np.all(transformed[values == values.min()] == 0.0)
+
+    def test_right_ecdf_maximum_value_maps_to_one(self):
+        """The maximum value must have right-ECDF = 1 (all elements are <= max)."""
+        values = np.array([3.0, 1.0, 4.0, 1.0, 5.0, 9.0])
+        data = _make_dataframe(values)
+        transformer = ECDFTransformer(side="right")
+
+        transformer.fit(data, column="values")
+        transformed = transformer.transform(data)["values"].to_numpy()
+
+        assert np.all(transformed[values == values.max()] == 1.0)
+
+    def test_reverse_transform_right_recovers_unique_values(self):
+        """Reverse transform with side='right' should recover original unique values."""
+        rng = np.random.default_rng(_get_seed())
+        for size in [10, 40, 120]:
+            values = rng.choice(np.arange(size * 50, dtype=float), size=size, replace=False)
+            data = _make_dataframe(values)
+            transformer = ECDFTransformer(side="right")
+
+            transformer.fit(data, column="values")
+            recovered = transformer.reverse_transform(transformer.transform(data))
+
+            assert np.allclose(recovered["values"].to_numpy(), data["values"].to_numpy(), atol=1e-8)
+
+    def test_reverse_transform_left_recovers_unique_values(self):
+        """Reverse transform with side='left' should recover original unique values."""
+        rng = np.random.default_rng(_get_seed())
+        for size in [10, 40, 120]:
+            values = rng.choice(np.arange(size * 50, dtype=float), size=size, replace=False)
+            data = _make_dataframe(values)
+            transformer = ECDFTransformer(side="left")
+
+            transformer.fit(data, column="values")
+            recovered = transformer.reverse_transform(transformer.transform(data))
+
+            assert np.allclose(recovered["values"].to_numpy(), data["values"].to_numpy(), atol=1e-8)
+
+
+# TODO: Simplify tests by unifying left and right ECDF
 
 if __name__ == "__main__":
     # Run tests with pytest

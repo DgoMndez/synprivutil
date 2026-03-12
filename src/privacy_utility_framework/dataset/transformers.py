@@ -234,17 +234,29 @@ class ECDFTransformer(BaseTransformer):
     SUPPORTED_SDTYPES = ["numerical"]
     OUTPUT_SDTYPES = {"value": "numerical"}
 
-    def __init__(self, subsample: int = 0, random_state=None):
+    def __init__(self, subsample: int = 0, random_state=None, side: str = "right"):
         r"""
         Initialize the ECDFTransformer.
 
         Args:
             subsample (int): If > 0, use subsampling for fitting. Default is 0 (no subsampling).
             random_state (int or None): Random seed for reproducibility during subsampling.
+            side (str): Which side of the ECDF to approximate.
+
+                - ``"right"`` (default): right-continuous ECDF,
+                  :math:`F(x) = P(X \leq x)`.
+                - ``"left"``: left-continuous ECDF,
+                  :math:`F(x^-) = P(X < x)`.
+
+        Raises:
+            ValueError: If ``side`` is not ``"right"`` or ``"left"``.
         """
         super().__init__()
+        if side not in ("right", "left"):
+            raise ValueError(f"side must be 'right' or 'left', got '{side}'.")
         self._subsample = subsample
         self._random_state = random_state
+        self._side = side
         self._sorted_values = None
         self._n_samples = None
         self._fitted = False
@@ -320,7 +332,7 @@ class ECDFTransformer(BaseTransformer):
                 f"Got data with shape {values.shape}."
             )
 
-        ranks = np.searchsorted(self._sorted_values, values, side="right")
+        ranks = np.searchsorted(self._sorted_values, values, side=self._side)
         transformed = ranks / self._n_samples
 
         return transformed.reshape(-1, 1)
@@ -354,9 +366,16 @@ class ECDFTransformer(BaseTransformer):
                 f"Got data with shape {ecdf_values.shape}."
             )
 
-        # Convert ECDF values [0, 1] back to indices
-        # F(x) = rank/n with rank in [1, n] => index = rank - 1
-        indices = np.floor(ecdf_values * self._n_samples).astype(int) - 1
+        # Convert ECDF values [0, 1] back to sorted-array indices.
+        #
+        # side="right": F(x) = rank/N, rank in [1, N]  =>  index = rank - 1
+        #   index = floor(p * N) - 1
+        # side="left":  F(x-) = rank/N, rank in [0, N-1]  =>  index = rank
+        #   index = floor(p * N)
+        if self._side == "right":
+            indices = np.floor(ecdf_values * self._n_samples).astype(int) - 1
+        else:  # side == "left"
+            indices = np.floor(ecdf_values * self._n_samples).astype(int)
         # Clip to valid range [0, n_samples - 1]
         indices = np.clip(indices, 0, self._n_samples - 1)
 

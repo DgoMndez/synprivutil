@@ -7,11 +7,10 @@ Email: domingo.mendezg@um.es
 Date: 27/02/2026
 """
 
-# TODO:
 # DONE 1. Integrate strategies into privacy/similarity metrics.
-# 2. QuantileDistanceStrategy test
+# DONE 2. QuantileDistanceStrategy test
 # DONE 3. cdist Matrix bug
-# 4. ECDF-transformer with tests
+# DONE 4. ECDF-transformer with tests
 
 from collections.abc import Callable
 
@@ -90,7 +89,7 @@ def transformed_dist(
         Second 1-D sample vector.
     hypertransformer : HyperTransformer
         Fitted HyperTransformer to apply to the samples.
-    base_metric : str or callable, optional
+    base_metric : str or Callable, optional
         Distance metric used by ``scipy.spatial.distance.cdist`` in transformed
         space.
     **kwargs
@@ -125,7 +124,7 @@ def transformed_cdist(
         Second sample (synthetic).
     hypertransformer : HyperTransformer
         Fitted HyperTransformer to apply to the samples.
-    base_metric : str or callable, optional
+    base_metric : str or Callable, optional
         Distance metric used by scipy.spatial.distance.cdist in transformed
         space (default: 'euclidean').
     **kwargs
@@ -179,7 +178,7 @@ def quantile_dist(
         Second 1-D sample vector.
     original_data : pd.DataFrame
         Reference data used to fit the quantile transformer.
-    base_metric : str or callable, optional
+    base_metric : str or Callable, optional
         Distance metric used by ``scipy.spatial.distance.cdist`` in transformed
         space.
     output_distribution : str, optional
@@ -224,7 +223,7 @@ def quantile_pdist(
         Input data.
     original_data : pd.DataFrame
         Reference data used to fit the quantile transformer.
-    base_metric : str or callable, optional
+    base_metric : str or Callable, optional
         Distance metric used by ``scipy.spatial.distance.pdist`` in transformed
         space (default: 'euclidean').
     output_distribution : str, optional
@@ -285,7 +284,7 @@ def quantile_cdist(
         First sample (original).
     XB : array_like, shape (m_B, n_features) or (n_features,)
         Second sample (synthetic).
-    base_metric : str or callable, optional
+    base_metric : str or Callable, optional
         Distance metric used by scipy.spatial.distance.cdist in transformed
         space (default: 'euclidean').
     output_distribution : str, optional
@@ -448,7 +447,7 @@ def custom_dist(u, v, metric: str | Callable = "euclidean", **kwargs):
         First 1-D sample vector.
     v : array_like
         Second 1-D sample vector.
-    metric : str or callable
+    metric : str or Callable
         Distance metric to use. If a string, it must be one of the registered custom metrics.
         If a callable, it should have the same signature as scipy.spatial.distance.cdist.
     **kwargs
@@ -480,7 +479,7 @@ def custom_pdist(X, metric: str | Callable = "euclidean", **kwargs):
     ----------
     X : array_like, shape (n_samples, n_features)
         Input data.
-    metric : str or callable
+    metric : str or Callable
         Distance metric to use. If a string, it must be one of the registered custom metrics.
         If a callable, it should have the same signature as scipy.spatial.distance.pdist.
     **kwargs
@@ -514,7 +513,7 @@ def custom_cdist(XA, XB, metric: str | Callable = "euclidean", *, out=None, **kw
         First sample (original).
     XB : array_like, shape (m_B, n_features) or (n_features,)
         Second sample (synthetic).
-    metric : str or callable
+    metric : str or Callable
         Distance metric to use. If a string, it must be one of the registered custom metrics.
         If a callable, it should have the same signature as scipy.spatial.distance.cdist.
     **kwargs

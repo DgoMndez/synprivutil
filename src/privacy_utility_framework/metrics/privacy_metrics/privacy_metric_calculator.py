@@ -2,11 +2,13 @@ from abc import ABC, abstractmethod
 
 import pandas as pd
 
-from privacy_utility_framework.dataset.dataset import DatasetManager
+from privacy_utility_framework.dataset.dataset import Dataset, DatasetManager
 
-# TODO 1: Add support for callable distance metrics on all distance-based privacy metrics.
-# TODO 2: Admit Datasets apart from DataFrames in the constructor (flexibility).
-# TODO 3: Implement CDF-based distance metrics.
+# DONE 1: Add support for callable distance metrics on all distance-based privacy metrics.
+# DONE 2: Admit Datasets apart from DataFrames in the constructor (flexibility).
+# TODO 2.5: accept DatasetManager directly in the constructor and \
+# leave dataframes for another cls method
+# DONE 3: Implement CDF-based distance metrics.
 
 
 class PrivacyMetricCalculator(ABC):
@@ -16,9 +18,9 @@ class PrivacyMetricCalculator(ABC):
 
     Parameters
     ----------
-    original : pd.DataFrame
+    original : pd.DataFrame or Dataset
         The original dataset to compare against the synthetic data.
-    synthetic : pd.DataFrame
+    synthetic : pd.DataFrame or Dataset
         The synthetic dataset generated to resemble the original data.
     original_name : str, optional
         Name for the original dataset.
@@ -28,25 +30,83 @@ class PrivacyMetricCalculator(ABC):
 
     def __init__(
         self,
-        original: pd.DataFrame,
-        synthetic: pd.DataFrame,
+        original: pd.DataFrame | Dataset,
+        synthetic: pd.DataFrame | Dataset,
         original_name: str = None,
         synthetic_name: str = None,
         **kwargs,
     ):
         # Initialize attributes for original and synthetic data
-        self.synthetic = None
-        self.original = None
+        self._dm = None
 
-        # Ensure both original and synthetic datasets are pandas DataFrames
-        if not isinstance(original, pd.DataFrame):
-            raise TypeError("original_data must be an instance of pandas Dataframe.")
-        if not isinstance(synthetic, pd.DataFrame):
-            raise TypeError("synthetic_data must be an instance of pandas Dataframe.")
         # Perform data transformation and normalization
         self._transform(original, synthetic, original_name, synthetic_name)
         # Perform data validation to ensure compatibility between datasets
         self._validate_data()
+
+    # TODO: from_dataframes
+    @classmethod
+    def from_dataframes(
+        cls,
+        original_df,
+        synthetic_df,
+        original_name=None,
+        synthetic_name=None,
+        hypertransformer=None,
+    ):
+        """
+        Alternative constructor to create a PrivacyMetricCalculator directly from pandas DataFrames.
+
+        Args:
+            original_df (pd.DataFrame): The original dataset as a DataFrame.
+            synthetic_df (pd.DataFrame): The synthetic dataset as a DataFrame.
+            original_name (str, optional): Name for the original dataset. Defaults to None.
+            synthetic_name (str, optional): Name for the synthetic dataset. Defaults to None.
+            hypertransformer (HyperTransformer, optional): An optional HyperTransformer to apply \
+                to both datasets. Defaults to None.
+        """
+        raise NotImplementedError("Not implemented yet")
+
+    # TODO: from_datasets
+    @classmethod
+    def from_datasets(cls, original_dataset, synthetic_dataset):
+        """
+        Alternative constructor to create a PrivacyMetricCalculator directly from Dataset objects.
+
+        Args:
+            original_dataset (Dataset): The original dataset as a Dataset object.
+            synthetic_dataset (Dataset): The synthetic dataset as a Dataset object.
+        """
+        raise NotImplementedError("Not implemented yet")
+
+    @staticmethod
+    def _build_dataset_manager(
+        original: pd.DataFrame | Dataset,
+        synthetic: pd.DataFrame | Dataset,
+        original_name: str = None,
+        synthetic_name: str = None,
+    ) -> DatasetManager:
+        """
+        Build a DatasetManager from either DataFrame inputs or Dataset inputs.
+
+        Raises
+        ------
+        TypeError
+            If input types are mixed or unsupported.
+        """
+        if isinstance(original, pd.DataFrame) and isinstance(synthetic, pd.DataFrame):
+            return DatasetManager.from_dataframes(
+                original, synthetic, original_name, synthetic_name
+            )
+
+        if isinstance(original, Dataset) and isinstance(synthetic, Dataset):
+            return DatasetManager.from_datasets(original, synthetic)
+
+        raise TypeError(
+            "'original' and 'synthetic' must both be pandas DataFrames or both be Dataset "
+            f"instances. Got original={type(original).__name__}, "
+            f"synthetic={type(synthetic).__name__}."
+        )
 
     @abstractmethod
     def evaluate(self) -> float:
@@ -93,32 +153,80 @@ class PrivacyMetricCalculator(ABC):
             if self.original.data[col].dtype != self.synthetic.data[col].dtype:
                 raise ValueError(f"Data type mismatch in column '{col}'.")
 
-    def _transform(self, original, synthetic, original_name, synthetic_name):
+    def _transform(
+        self,
+        original: pd.DataFrame | Dataset,
+        synthetic: pd.DataFrame | Dataset,
+        original_name: str,
+        synthetic_name: str,
+    ):
         """
         Transforms both the original and synthetic datasets, \
             applying encoding or normalization for each column as needed.
 
         Parameters
         ----------
-        original : pd.DataFrame
+        original : pd.DataFrame or Dataset
             The original dataset to transform and normalize.
-        synthetic : pd.DataFrame
+        synthetic : pd.DataFrame or Dataset
             The synthetic dataset to transform and normalize.
         original_name : str
             The name of the original dataset.
         synthetic_name : str
             The name of the synthetic dataset.
         """
-        # Initialize DatasetManager with original and synthetic data and their names
-        manager = DatasetManager.from_dataframes(original, synthetic, original_name, synthetic_name)
+        # Initialize DatasetManager from DataFrames or Dataset objects
+        self._dm = self._build_dataset_manager(
+            original=original,
+            synthetic=synthetic,
+            original_name=original_name,
+            synthetic_name=synthetic_name,
+        )
 
-        # TODO: Check if data transformation should be done here or left to the user
+        # TODO 4: Check if data transformation should be done here or left to the user
         # Configure the transformer and scaler to apply transformations to datasets
-        manager.set_hypertransformer()
+        if isinstance(original, Dataset):
+            # Respect the transformer already configured on the original Dataset.
+            # This preserves custom transformer choices instead of resetting to defaults.
+            self._dm.set_hypertransformer(transformer=original.get_hypertransformer())
+        else:
+            self._dm.set_hypertransformer()
 
         # Perform transformation and normalization on both datasets
-        manager.transform_datasets()
+        self._dm.transform_datasets()
 
-        # Store transformed and normalized datasets in attributes
-        self.original = manager.original_dataset
-        self.synthetic = manager.synthetic_dataset
+    @property
+    def dataset_manager(self) -> DatasetManager:
+        """
+        Accessor for the internal DatasetManager instance.
+
+        Returns
+        -------
+        DatasetManager
+            The DatasetManager instance managing the original and synthetic datasets.
+        """
+        return self._dm
+
+    @property
+    def original(self) -> Dataset:
+        """
+        Accessor for the original dataset.
+
+        Returns
+        -------
+        Dataset
+            The original dataset after transformation and normalization.
+        """
+        return self._dm.original_dataset
+
+    @property
+    def synthetic(self) -> Dataset:
+        """
+        Accessor for the synthetic dataset.
+
+        Returns
+        -------
+        Dataset
+            The synthetic dataset after transformation and normalization.
+        """
+        return self._dm.synthetic_dataset

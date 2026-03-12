@@ -163,7 +163,7 @@ def privacy_metric_manager_example():
 
 def privacy_metric_manager_quantile_example():
     print("~~~~~~~~~PRIVACY METRICS (QUANTILE DISTANCE)~~~~~~~~~~")
-    datasets = ["diabetes", "insurance", "cardio"]
+    datasets = ["diabetes", "insurance"]
     synthetizers = ["copulagan", "ctgan"]
 
     for orig in datasets:
@@ -184,6 +184,7 @@ def privacy_metric_manager_quantile_example():
                 "original_data": original_dataset.transformed_data,
                 "base_metric": "euclidean",
                 "output_distribution": "uniform",
+                "n_quantiles": min(100, len(original_dataset.transformed_data)),
             }
 
             p = PrivacyMetricManager()
@@ -227,9 +228,51 @@ def privacy_metric_manager_quantile_example():
                 print(f"{key}: {value}")
 
 
-# dcr_example()
-# nndr_example()
-# nnaa_example()
-# privacy_metric_manager_example()
+def privacy_metric_manager_ecdf_example():
+    print("~~~~~~~~~PRIVACY METRICS (ECDF DISTANCE)~~~~~~~~~~")
+    datasets = ["diabetes", "insurance", "cardio"]
+    synthetizers = ["copulagan", "ctgan"]
+
+    for orig in datasets:
+        for syn in synthetizers:
+            original_data = pd.read_csv(_dataset_path("original", f"{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _dataset_path("synthetic", f"{orig}_datasets", f"{syn}_sample.csv")
+            )
+            original_name = orig.capitalize()
+            synthetic_name = syn.upper()
+
+            original_dataset = Dataset(original_data, name=original_name)
+            original_dataset.fit_transform()
+
+            metric_args = {
+                "original_data": original_dataset.transformed_data,
+                "base_metric": "euclidean",
+            }
+
+            print(f"~~~Pair: {orig, syn}~~~\n")
+
+            p = PrivacyMetricManager()
+            metric_list = [
+                AdversarialAccuracyCalculator_NN(
+                    original_data,
+                    synthetic_data,
+                    original_name=original_name,
+                    synthetic_name=synthetic_name,
+                    distance_strategy="ecdf",
+                    nn_samples=0,
+                    **metric_args,
+                ),
+            ]
+            p.add_metric(metric_list)
+            results = p.evaluate_all()
+            for key, value in results.items():
+                print(f"{key}: {value}")
+
+
+dcr_example()
+nndr_example()
+nnaa_example()
+privacy_metric_manager_example()
 privacy_metric_manager_quantile_example()
-# disco_new()
+privacy_metric_manager_ecdf_example()

@@ -98,6 +98,20 @@ def test_strategy_factory_creates_appropiate_strategy():
         assert isinstance(strategy, expected_cls)
 
 
+def test_quantile_strategy_factory_accepts_transformer_kwargs_without_leaking_to_base():
+    original_data = pd.DataFrame({"a": [0.0, 1.0, 2.0], "b": [2.0, 3.0, 4.0]})
+
+    strategy = DistanceStrategyFactory.create(
+        strategy="quantile",
+        original_data=original_data,
+        n_quantiles=2,
+        output_distribution="uniform",
+        qt_factory=RankQuantileMockTransformer,
+    )
+
+    assert isinstance(strategy, QuantileDistanceStrategy)
+
+
 def test_scipy_strategy_batched_aggregate_matches_direct():
     for k in range(1, 6):
         aux = 1 if k % 2 == 0 else -1

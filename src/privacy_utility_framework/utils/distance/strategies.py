@@ -473,7 +473,6 @@ class QuantileDistanceStrategy(TransformedDistanceStrategy):
             hypertransformer=self._hypertransformer,
             base_metric=base_metric,
             default_args=default_args,
-            **kwargs,
         )
         self._output_distribution = output_distribution
         self._qt_factory = qt_factory
@@ -544,7 +543,6 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
             hypertransformer=self._hypertransformer,
             base_metric=base_metric,
             default_args=default_args,
-            **kwargs,
         )
         self._ecdf_factory = ecdf_factory
         self._original_data = original_data

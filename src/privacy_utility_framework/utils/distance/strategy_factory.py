@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from .strategies import (
     DistanceStrategy,
     ScipyDistanceStrategy,
@@ -54,17 +56,18 @@ class DistanceStrategyFactory:
 
     @classmethod
     def create(
-        cls, strategy: str | callable = "euclidean", default_args: dict | None = None, **kwargs
+        cls, strategy: str | Callable = "euclidean", default_args: dict | None = None, **kwargs
     ) -> DistanceStrategy:
         """
         Creates a DistanceStrategy object from the name of its class, default arguments of the \
             metric and other constructor arguments.
 
         Args:
-            strategy (str | callable): The canonical name of the distance strategy to create, \
-                or a callable if CustomStrategy is to be used. \
+            strategy (str | Callable): The canonical name of the distance strategy to create, \
+                or a `Callable` if `CustomDistanceStrategy` is to be used. \
                 This must match the __canonical_name attribute of the strategy class. \
-                Available options are: "scipy", "transformed", "quantile" and "custom". \
+                Available options are: "scipy", "transformed", "quantile", "ecdf" \
+                and "custom". \
                 Additionally, any distance in scipy can be used by specifying its name.
             default_args (dict | None, optional): Default arguments for the distance metric \
                 calculator in the strategy. Defaults to None.
@@ -85,4 +88,11 @@ class DistanceStrategyFactory:
             )
             return strategies[strategy](default_args=default_args, **kwargs)
         else:
-            return strategies["custom"](metric=strategy, default_args=default_args, **kwargs)
+            metric_args = default_args.copy() if default_args else {}
+            if kwargs:
+                metric_args.update(kwargs)
+
+            return strategies["custom"](
+                metric=strategy,
+                default_args=metric_args or None,
+            )

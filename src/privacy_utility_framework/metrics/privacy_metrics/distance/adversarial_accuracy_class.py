@@ -33,6 +33,12 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
             original (pd.DataFrame): Original dataset.
             synthetic (pd.DataFrame): Synthetic dataset.
             distance_strategy (str or DistanceStrategy): The distance strategy to use.
+            original_name (str, optional): Name for the original dataset (default: None).
+            synthetic_name (str, optional): Name for the synthetic dataset (default: None).
+            nn_samples (int, optional): Number of samples used in mean nearest neighbor distance \
+                stimations. If 0 or less, all samples are used (default: 0).
+            nn_random_state (int, optional): Random state for sampling in nearest neighbor \
+                calculations (default: None).
             **kwargs (dict, optional): Extra keyword arguments forwarded to
                 the distance strategy creation.
         """
@@ -110,6 +116,8 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
         distance_strategy: str | DistanceStrategy = "euclidean",
         original_name: str = None,
         synthetic_name: str = None,
+        nn_samples: int = 0,
+        nn_random_state: int = None,
         **kwargs,
     ):
         """
@@ -120,6 +128,10 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             distance_metric (str or Callable): The distance metric to use for nearest neighbor \
                 calculations. It must be admissible by sklearn's NearestNeighbors.
+            nn_samples (int, optional): Number of samples used in mean nearest neighbor distance \
+                stimations. If 0 or less, all samples are used (default: 0).
+            nn_random_state (int, optional): Random state for sampling in nearest neighbor \
+                calculations (default: None).
             **kwargs: Extra keyword arguments forwarded to Nearest Neighbors for custom metrics.
         """
         super().__init__(
@@ -137,6 +149,8 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
             "synthetic": self.synthetic.transformed_data,
         }
         self.dists = {}
+        self.nn_samples = nn_samples
+        self.random_state = nn_random_state
 
     def _nearest_neighbors(self, t, s):
         """
@@ -149,11 +163,18 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
         Returns:
             distances (ndarray): Array of nearest neighbor distances from dataset t to dataset s.
         """
-
-        if t == s:
-            d, _ = self.distance_strategy.nearest_neighbors(self.data[s], None)
+        if self.nn_samples <= 0 or self.data[s].shape[0] <= self.nn_samples:
+            if t == s:
+                d, _ = self.distance_strategy.nearest_neighbors(self.data[s], None)
+            else:
+                d, _ = self.distance_strategy.nearest_neighbors(self.data[s], self.data[t])
         else:
-            d, _ = self.distance_strategy.nearest_neighbors(self.data[s], self.data[t])
+            X_target = self.data[t].sample(n=self.nn_samples, random_state=self.random_state)
+            if t == s:
+                aux_d, _ = self.distance_strategy.nearest_neighbors(X_target, self.data[s], k=2)
+                d = np.partition(aux_d, 1, axis=1)[:, 1]  # Get the second smallest distance
+            else:
+                d, _ = self.distance_strategy.nearest_neighbors(X_target, self.data[t])
 
         return d
 
