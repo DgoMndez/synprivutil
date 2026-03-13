@@ -75,6 +75,77 @@ def _get_ecdf_hypertransformer(original_data, ecdf_factory=ECDFTransformer, **kw
     return hypertransformer
 
 
+def _build_ecdf_references(original_data, ecdf_factory=ECDFTransformer, **kwargs):
+    """Fit one ECDF transformer per column and extract sorted reference values."""
+    original_data = _to_dataframe(original_data, getattr(original_data, "columns", None))
+
+    references = []
+    for column in original_data.columns:
+        transformer = ecdf_factory(**kwargs)
+        transformer._fit(original_data[column].to_numpy())
+
+        sorted_values = getattr(transformer, "_sorted_values", None)
+        n_samples = getattr(transformer, "_n_samples", None)
+        if sorted_values is None or n_samples is None:
+            raise ValueError(
+                "ECDF transformer must expose fitted '_sorted_values' and '_n_samples' "
+                "attributes to be used in ECDFDistance."
+            )
+
+        references.append((np.asarray(sorted_values), int(n_samples)))
+
+    return list(original_data.columns), references
+
+
+def _ecdf_bounds_from_references(data, columns, references):
+    """Transform each column into its left- and right-ECDF bounds."""
+    data = _to_dataframe(data, columns)
+    values = data.to_numpy()
+
+    left = np.empty(values.shape, dtype=float)
+    right = np.empty(values.shape, dtype=float)
+
+    for idx, (sorted_values, n_samples) in enumerate(references):
+        column_values = values[:, idx]
+        left[:, idx] = np.searchsorted(sorted_values, column_values, side="left") / n_samples
+        right[:, idx] = np.searchsorted(sorted_values, column_values, side="right") / n_samples
+
+    return left, right
+
+
+def _ecdf_distance_matrix_from_bounds(
+    left_A,
+    right_A,
+    left_B,
+    right_B,
+    base_metric="euclidean",
+    *,
+    out=None,
+    **kwargs,
+):
+    """Compute ECDF interval distances from precomputed left/right bounds."""
+    nA, n_features = left_A.shape
+    nB = left_B.shape[0]
+    components = np.empty((nA * nB, n_features), dtype=float)
+    for idx in range(n_features):
+        u = left_B[:, idx][None, :] - right_A[:, idx][:, None]
+        v = left_A[:, idx][:, None] - right_B[:, idx][None, :]
+        components[:, idx] = np.maximum(0.0, np.maximum(u, v)).reshape(-1)
+
+    metric = base_metric or "euclidean"
+    distances = distance.cdist(
+        components,
+        np.zeros((1, n_features), dtype=float),
+        metric=metric,
+        **kwargs,
+    ).reshape(nA, nB)
+
+    if out is not None:
+        out[...] = distances
+        return out
+    return distances
+
+
 def transformed_dist(
     u, v, *, hypertransformer: HyperTransformer, base_metric: str | Callable = "euclidean", **kwargs
 ):
@@ -364,13 +435,15 @@ def ecdf_pdist(
     assert X.shape[1] == original_data.shape[1], (
         "X and original_data must have the same number of columns."
     )
-
-    hypertransformer = _get_ecdf_hypertransformer(
+    distances = ecdf_cdist(
+        X,
+        X,
+        base_metric=base_metric,
         original_data=original_data,
         ecdf_factory=ecdf_factory,
+        **kwargs,
     )
-    X_transformed = hypertransformer.transform(X)
-    return distance.pdist(X_transformed, metric=base_metric, **kwargs)
+    return distance.squareform(distances, force="tovector", checks=False)
 
 
 def ecdf_cdist(
@@ -383,7 +456,7 @@ def ecdf_cdist(
     out=None,
     **kwargs,
 ):
-    """Calculate distances after column-wise ECDF transformation."""
+    """Calculate distances using ECDF interval gaps per column."""
     if original_data is None:
         if isinstance(XA, pd.DataFrame):
             original_data = XA
@@ -396,14 +469,18 @@ def ecdf_cdist(
     assert XA.shape[1] == XB.shape[1] == original_data.shape[1], (
         "XA, XB, and original_data must have the same number of columns."
     )
-
-    hypertransformer = _get_ecdf_hypertransformer(
-        original_data=original_data,
-        ecdf_factory=ecdf_factory,
+    columns, references = _build_ecdf_references(original_data, ecdf_factory=ecdf_factory)
+    left_A, right_A = _ecdf_bounds_from_references(XA, columns, references)
+    left_B, right_B = _ecdf_bounds_from_references(XB, columns, references)
+    return _ecdf_distance_matrix_from_bounds(
+        left_A,
+        right_A,
+        left_B,
+        right_B,
+        base_metric=base_metric,
+        out=out,
+        **kwargs,
     )
-    XA_transformed = hypertransformer.transform(XA)
-    XB_transformed = hypertransformer.transform(XB)
-    return distance.cdist(XA_transformed, XB_transformed, metric=base_metric, out=out, **kwargs)
 
 
 # Registry of custom metrics

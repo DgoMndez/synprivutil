@@ -4,7 +4,7 @@ Description: Comprehensive unit tests for ECDFTransformer.
 
 Author: Domingo Méndez García
 Email: domingo.mendezg@um.es
-Date: 12/03/2026
+Date of creation: 12/03/2026
 """
 
 import numpy as np
@@ -361,7 +361,13 @@ class TestECDFTransformerSide:
 
     def test_invalid_side_raises_valueerror(self):
         """Passing an unknown side should raise ValueError immediately."""
-        with pytest.raises(ValueError, match="side must be"):
+
+        x = ECDFTransformer(side="right")
+        assert x.side == "right"
+        x = ECDFTransformer(side="left")
+        assert x.side == "left"
+
+        with pytest.raises(ValueError):
             ECDFTransformer(side="center")
 
     def test_right_side_default_matches_explicit(self):

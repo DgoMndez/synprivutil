@@ -6,6 +6,7 @@ from scipy.spatial.distance import cdist
 
 from privacy_utility_framework.dataset.transformers import QuantileRDTransformer
 from privacy_utility_framework.utils.distance.distance import (
+    ecdf_cdist,
     quantile_cdist,
     transformed_cdist,
 )
@@ -142,3 +143,25 @@ def test_quantile_cdist():
     assert np.allclose(distances, true_distances), (
         "CDF-transformed distances should match true distances in uniform space."
     )
+
+
+def test_ecdf_cdist_matches_interval_gap_definition():
+    original_data = pd.DataFrame(
+        {
+            "col1": np.array([1.0, 1.0, 3.0, 5.0]),
+            "col2": np.array([10.0, 20.0, 20.0, 40.0]),
+        }
+    )
+    XA = np.array([[1.0, 20.0], [5.0, 10.0]])
+    XB = np.array([[3.0, 40.0], [1.0, 10.0]])
+
+    distances = ecdf_cdist(XA, XB, original_data=original_data, base_metric="euclidean")
+
+    expected = np.array(
+        [
+            [0.0, 0.0],
+            [0.5, 0.25],
+        ]
+    )
+
+    assert np.allclose(distances, expected)

@@ -1,4 +1,7 @@
+from pathlib import Path
+
 import pandas as pd
+import tqdm
 
 from privacy_utility_framework.metrics.privacy_metrics.attacks.inference_class import (
     InferenceCalculator,
@@ -10,18 +13,21 @@ from privacy_utility_framework.metrics.privacy_metrics.attacks.singlingout_class
     SinglingOutCalculator,
 )
 
+BASE_DIR = Path(__file__).resolve().parent
+DATASETS_DIR = BASE_DIR
+
 
 def inference_example():
     synthetic_datasets = ["copulagan", "ctgan", "gaussian_copula", "gmm", "tvae", "random"]
     original_datasets = ["insurance"]
 
     for orig in original_datasets:
-        for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../examples/{orig}_datasets/train/{orig}.csv")
+        for syn in tqdm.tqdm(synthetic_datasets, "Inference attack eval:"):
+            original_data = pd.read_csv(f"{DATASETS_DIR}/{orig}_datasets/train/{orig}.csv")
             synthetic_data = pd.read_csv(
-                f"../examples/{orig}_datasets/syn_on_train/{syn}_sample.csv"
+                f"{DATASETS_DIR}/{orig}_datasets/syn_on_train/{syn}_sample.csv"
             )
-            control = pd.read_csv(f"../examples/{orig}_datasets/test/{orig}.csv")
+            control = pd.read_csv(f"{DATASETS_DIR}/{orig}_datasets/test/{orig}.csv")
             columns = original_data.columns
             results = []
 
@@ -53,12 +59,12 @@ def linkability_example():
     print("STARTED")
 
     for orig in original_datasets:
-        for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../examples/{orig}_datasets/train/{orig}.csv")
+        for syn in tqdm.tqdm(synthetic_datasets, "Linkability eval:"):
+            original_data = pd.read_csv(f"{DATASETS_DIR}/{orig}_datasets/train/{orig}.csv")
             synthetic_data = pd.read_csv(
-                f"../examples/{orig}_datasets/syn_on_train/{syn}_sample.csv"
+                f"{DATASETS_DIR}/{orig}_datasets/syn_on_train/{syn}_sample.csv"
             )
-            control_orig = pd.read_csv(f"../examples/{orig}_datasets/test/{orig}.csv")
+            control_orig = pd.read_csv(f"{DATASETS_DIR}/{orig}_datasets/test/{orig}.csv")
             link = LinkabilityCalculator(
                 original_data,
                 synthetic_data,
@@ -77,13 +83,15 @@ def singling_out_example():
     original_datasets = ["insurance"]
 
     for orig in original_datasets:
-        for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../examples/{orig}_datasets/train/{orig}.csv")
+        for syn in tqdm.tqdm(synthetic_datasets, "Singling Out eval:"):
+            original_data = pd.read_csv(f"{DATASETS_DIR}/{orig}_datasets/train/{orig}.csv")
             synthetic_data = pd.read_csv(
-                f"../examples/{orig}_datasets/syn_on_train/{syn}_sample.csv"
+                f"{DATASETS_DIR}/{orig}_datasets/syn_on_train/{syn}_sample.csv"
             )
 
-            test_sing = SinglingOutCalculator(original_data, synthetic_data)
+            test_sing = SinglingOutCalculator(
+                original_data, synthetic_data, max_attempts=5e3, n_attacks=100
+            )
 
             # NOTE: This may take a little longer
             results = test_sing.evaluate()

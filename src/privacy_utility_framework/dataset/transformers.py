@@ -4,13 +4,18 @@ Description: RDT transformer wrappers.
 
 Author: Domingo Méndez García
 Email: domingo.mendezg@um.es
-Date: 02/03/2026
+Date of creation: 02/03/2026
 """
+
+from typing import Literal, TypeAlias, get_args
 
 import numpy as np
 import pandas as pd
 from rdt.transformers import BaseTransformer
 from sklearn.preprocessing import MinMaxScaler, QuantileTransformer
+
+ECDFSide: TypeAlias = Literal["right", "left"]
+VALID_ECDF_SIDES = get_args(ECDFSide)
 
 
 def _get_num_rows(data):
@@ -234,29 +239,25 @@ class ECDFTransformer(BaseTransformer):
     SUPPORTED_SDTYPES = ["numerical"]
     OUTPUT_SDTYPES = {"value": "numerical"}
 
-    def __init__(self, subsample: int = 0, random_state=None, side: str = "right"):
+    def __init__(self, subsample: int = 0, random_state=None, side: ECDFSide = "right"):
         r"""
         Initialize the ECDFTransformer.
 
         Args:
             subsample (int): If > 0, use subsampling for fitting. Default is 0 (no subsampling).
             random_state (int or None): Random seed for reproducibility during subsampling.
-            side (str): Which side of the ECDF to approximate.
+            side (ECDFSide): Which side of the ECDF to approximate.
 
                 - ``"right"`` (default): right-continuous ECDF,
                   :math:`F(x) = P(X \leq x)`.
                 - ``"left"``: left-continuous ECDF,
                   :math:`F(x^-) = P(X < x)`.
-
-        Raises:
-            ValueError: If ``side`` is not ``"right"`` or ``"left"``.
         """
         super().__init__()
-        if side not in ("right", "left"):
-            raise ValueError(f"side must be 'right' or 'left', got '{side}'.")
+
         self._subsample = subsample
         self._random_state = random_state
-        self._side = side
+        self.side = side
         self._sorted_values = None
         self._n_samples = None
         self._fitted = False
@@ -303,7 +304,7 @@ class ECDFTransformer(BaseTransformer):
         self._sorted_values = np.sort(sampled_values)
         self._fitted = True
 
-    def _transform(self, data):
+    def _transform(self, data, side: ECDFSide | None = None):
         r"""
         Transform data using the fitted ECDF.
 
@@ -332,12 +333,14 @@ class ECDFTransformer(BaseTransformer):
                 f"Got data with shape {values.shape}."
             )
 
-        ranks = np.searchsorted(self._sorted_values, values, side=self._side)
+        if side is None:
+            side = self._side
+        ranks = np.searchsorted(self._sorted_values, values, side=side)
         transformed = ranks / self._n_samples
 
         return transformed.reshape(-1, 1)
 
-    def _reverse_transform(self, data):
+    def _reverse_transform(self, data, side: ECDFSide | None = None):
         r"""
         Reverse the ECDF transformation to recover approximate original values.
 
@@ -353,6 +356,10 @@ class ECDFTransformer(BaseTransformer):
         """
         assert self._fitted, "ECDFTransformer must be fitted before calling reverse_transform."
 
+        if side is not None:
+            self._check_side(side)
+        else:
+            side = self._side
         # Convert Series to array if needed
         if isinstance(data, pd.Series):
             ecdf_values = data.values
@@ -372,7 +379,7 @@ class ECDFTransformer(BaseTransformer):
         #   index = floor(p * N) - 1
         # side="left":  F(x-) = rank/N, rank in [0, N-1]  =>  index = rank
         #   index = floor(p * N)
-        if self._side == "right":
+        if side == "right":
             indices = np.floor(ecdf_values * self._n_samples).astype(int) - 1
         else:  # side == "left"
             indices = np.floor(ecdf_values * self._n_samples).astype(int)
@@ -383,3 +390,17 @@ class ECDFTransformer(BaseTransformer):
         recovered_values = self._sorted_values[indices]
 
         return recovered_values.reshape(-1, 1)
+
+    @property
+    def side(self) -> ECDFSide:
+        return self._side
+
+    @staticmethod
+    def _check_side(value: ECDFSide) -> None:
+        if value not in (VALID_ECDF_SIDES):
+            raise ValueError(f"side must be 'right' or 'left', got '{value}'.")
+
+    @side.setter
+    def side(self, value: ECDFSide) -> None:
+        self._check_side(value)
+        self._side = value

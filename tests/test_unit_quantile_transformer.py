@@ -4,7 +4,7 @@ Description: Unit test for QuantileRDTransformer.
 
 Author: Domingo Méndez García
 Email: domingo.mendezg@um.es
-Date: 02/03/2026
+Date of creation: 02/03/2026
 """
 
 import numpy as np

@@ -22,6 +22,8 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
         distance_strategy: str | DistanceStrategy = "euclidean",
         original_name: str = None,
         synthetic_name: str = None,
+        nn_samples: int = 0,
+        nn_random_state: int = None,
         **kwargs,
     ):
         """
@@ -52,6 +54,8 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
             synthetic_name=synthetic_name,
             **kwargs,
         )
+        self.nn_samples = nn_samples
+        self.random_state = nn_random_state
 
     def evaluate(self):
         """
@@ -88,7 +92,13 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
         synthetic = self.synthetic.transformed_data
 
         aux_list = [original, synthetic]
-        len_list = [original.shape[0], synthetic.shape[0]]
+        sampled_data = [
+            self._sample_for_nn(original),
+            self._sample_for_nn(synthetic),
+        ]
+        sampled_list = [item[0] for item in sampled_data]
+        sampled_indices = [item[1] for item in sampled_data]
+        len_list = [sampled_list[0].shape[0], sampled_list[1].shape[0]]
         min_distances = [np.empty((2, len_list[0])), np.empty((2, len_list[1]))]
 
         # Calculate pairwise distances between original and synthetic datasets
@@ -97,10 +107,53 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
 
         for i in range(2):
             for j in range(2):
-                min_distances[i][j, :] = self.distance_strategy.min_cdist(
-                    aux_list[i], aux_list[j], same=(i == j)
-                )
+                if (
+                    i == j
+                    and len(sampled_list[i]) == len(aux_list[j])
+                    and np.array_equal(sampled_indices[i], np.arange(len(aux_list[j]), dtype=int))
+                ):
+                    min_distances[i][j, :] = self.distance_strategy.min_cdist(
+                        sampled_list[i], aux_list[j], same=True
+                    )
+                else:
+                    min_distances[i][j, :] = self._min_distance_to_source(
+                        sampled_list[i],
+                        aux_list[j],
+                        same_indices=sampled_indices[i] if i == j else None,
+                    )
         return min_distances[0], min_distances[1]
+
+    def _sample_for_nn(self, data: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
+        """Return sampled rows and their positions in the original dataset."""
+        if self.nn_samples is None or self.nn_samples <= 0 or len(data) <= self.nn_samples:
+            return data, np.arange(len(data), dtype=int)
+
+        sampled = data.sample(n=self.nn_samples, random_state=self.random_state)
+        sampled_indices = data.index.get_indexer(sampled.index)
+        return sampled, sampled_indices
+
+    def _min_distance_to_source(
+        self,
+        X_target: pd.DataFrame,
+        X_source: pd.DataFrame,
+        same_indices: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Compute row-wise minimum distances, masking exact self-pairs when requested."""
+        if same_indices is None:
+            return self.distance_strategy.min_cdist(X_target, X_source, same=False)
+
+        max_size = getattr(self.distance_strategy, "max_size", 1 << 30)
+        batch_size = max(1, (max_size >> 4) // max(1, len(X_source)))
+        min_distances = np.empty(len(X_target), dtype=float)
+
+        for start in range(0, len(X_target), batch_size):
+            stop = min(start + batch_size, len(X_target))
+            batch_distances = self.distance_strategy.cdist(X_target.iloc[start:stop], X_source)
+            row_indices = np.arange(stop - start)
+            batch_distances[row_indices, same_indices[start:stop]] = np.inf
+            min_distances[start:stop] = np.min(batch_distances, axis=1)
+
+        return min_distances
 
 
 class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):

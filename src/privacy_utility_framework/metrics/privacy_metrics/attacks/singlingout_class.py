@@ -12,7 +12,7 @@ class SinglingOutCalculator(PrivacyMetricCalculator):
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
         n_cols: int = 3,
-        max_attempts: int | None = 1e7,
+        max_attempts: int | None = 1e7,  # TODO: Maybe 1e7 is too much
         n_attacks: int = 500,
         control: pd.DataFrame | None = None,
         original_name: str = None,

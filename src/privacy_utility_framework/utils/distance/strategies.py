@@ -13,9 +13,13 @@ from sklearn.neighbors import NearestNeighbors
 from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileRDTransformer
 
 from .distance import (
+    _build_ecdf_references,
+    _ecdf_bounds_from_references,
+    _ecdf_distance_matrix_from_bounds,
     _get_ecdf_hypertransformer,
     _get_quantile_hypertransformer,
     custom_cdist,
+    ecdf_pdist,
     transformed_cdist,
 )
 
@@ -539,6 +543,11 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
             ecdf_factory=ecdf_factory,
             **kwargs,
         )
+        self._columns, self._ecdf_references = _build_ecdf_references(
+            original_data=original_data,
+            ecdf_factory=ecdf_factory,
+            **kwargs,
+        )
         super().__init__(
             hypertransformer=self._hypertransformer,
             base_metric=base_metric,
@@ -546,6 +555,7 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         )
         self._ecdf_factory = ecdf_factory
         self._original_data = original_data
+        self._ecdf_kwargs = kwargs.copy()
 
     @property
     def hypertransformer(self):
@@ -554,6 +564,10 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
     @property
     def base_metric(self):
         return self._base_metric
+
+    @property
+    def supports_sklearn_nn(self) -> bool:
+        return False
 
     @property
     def ecdf_factory(self):
@@ -570,7 +584,104 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         self._hypertransformer = _get_ecdf_hypertransformer(
             original_data=value,
             ecdf_factory=ecdf_factory or self._ecdf_factory,
+            **self._ecdf_kwargs,
         )
+        self._columns, self._ecdf_references = _build_ecdf_references(
+            original_data=value,
+            ecdf_factory=ecdf_factory or self._ecdf_factory,
+            **self._ecdf_kwargs,
+        )
+
+    def _cdist(self, XA, XB, base_metric: str | Callable = None, out=None, **kwargs):
+        metric_kwargs = self.metric_args.copy()
+        if kwargs:
+            metric_kwargs.update(kwargs)
+        base_metric = base_metric or metric_kwargs.pop("base_metric", self._base_metric)
+        left_A, right_A = _ecdf_bounds_from_references(XA, self._columns, self._ecdf_references)
+        left_B, right_B = _ecdf_bounds_from_references(XB, self._columns, self._ecdf_references)
+        return _ecdf_distance_matrix_from_bounds(
+            left_A,
+            right_A,
+            left_B,
+            right_B,
+            base_metric=base_metric,
+            out=out,
+            **metric_kwargs,
+        )
+
+    def pdist(self, X, *, out=None, **kwargs):
+        metric_kwargs = self.metric_args.copy()
+        if kwargs:
+            metric_kwargs.update(kwargs)
+        base_metric = metric_kwargs.pop("base_metric", self._base_metric)
+        return ecdf_pdist(
+            X,
+            original_data=self._original_data,
+            base_metric=base_metric,
+            ecdf_factory=self._ecdf_factory,
+            **metric_kwargs,
+        )
+
+    def nearest_neighbors(self, X_source, X_target=None, k=1, **kwargs):
+        metric_kwargs = self.metric_args.copy()
+        if kwargs:
+            metric_kwargs.update(kwargs)
+        base_metric = metric_kwargs.pop("base_metric", self._base_metric)
+
+        source_left, source_right = _ecdf_bounds_from_references(
+            X_source, self._columns, self._ecdf_references
+        )
+
+        same = False
+        if X_target is None:
+            target_left, target_right = source_left, source_right
+            same = True
+        else:
+            target_left, target_right = _ecdf_bounds_from_references(
+                X_target, self._columns, self._ecdf_references
+            )
+
+        c_size = len(X_source) * len(target_left) * k << 4
+        if c_size <= self.max_size:
+            distances = _ecdf_distance_matrix_from_bounds(
+                target_left,
+                target_right,
+                source_left,
+                source_right,
+                base_metric=base_metric,
+                **metric_kwargs,
+            )
+            if same:
+                np.fill_diagonal(distances, np.inf)
+            indices = np.argpartition(distances, k - 1, axis=1)[:, :k]
+            nearest = np.take_along_axis(distances, indices, axis=1)
+            return nearest, indices
+
+        batch_size = max(1, (self.max_size >> 4) // (len(X_source) * k))
+        distances = np.empty((len(target_left), k))
+        indices = np.empty((len(target_left), k), dtype=int)
+        for start in range(0, len(target_left), batch_size):
+            stop = start + batch_size
+            batch_distances = _ecdf_distance_matrix_from_bounds(
+                target_left[start:stop],
+                target_right[start:stop],
+                source_left,
+                source_right,
+                base_metric=base_metric,
+                **metric_kwargs,
+            )
+            if same:
+                for offset in range(len(batch_distances)):
+                    diagonal_idx = start + offset
+                    if diagonal_idx < len(X_source):
+                        batch_distances[offset, diagonal_idx] = np.inf
+            indices[start:stop] = np.argpartition(batch_distances, k - 1, axis=1)[:, :k]
+            distances[start:stop] = np.take_along_axis(
+                batch_distances,
+                indices[start:stop],
+                axis=1,
+            )
+        return distances, indices
 
 
 class CustomDistanceStrategy(DistanceStrategy):

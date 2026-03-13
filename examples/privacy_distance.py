@@ -254,13 +254,13 @@ def privacy_metric_manager_ecdf_example():
 
             p = PrivacyMetricManager()
             metric_list = [
-                AdversarialAccuracyCalculator_NN(
+                AdversarialAccuracyCalculator(
                     original_data,
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
                     distance_strategy="ecdf",
-                    nn_samples=0,
+                    nn_samples=50,
                     **metric_args,
                 ),
             ]
@@ -270,9 +270,9 @@ def privacy_metric_manager_ecdf_example():
                 print(f"{key}: {value}")
 
 
-dcr_example()
-nndr_example()
-nnaa_example()
-privacy_metric_manager_example()
-privacy_metric_manager_quantile_example()
+# dcr_example()
+# nndr_example()
+# nnaa_example()
+# privacy_metric_manager_example()
+# privacy_metric_manager_quantile_example()
 privacy_metric_manager_ecdf_example()

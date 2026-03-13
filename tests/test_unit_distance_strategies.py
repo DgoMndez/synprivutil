@@ -241,3 +241,32 @@ def test_ecdf_strategy_matches_ecdf_cdist():
         )
 
         assert np.allclose(distances, expected)
+
+
+def test_ecdf_strategy_nearest_neighbors_matches_cdist_argmin():
+    original_data = pd.DataFrame(
+        {
+            "a": [0.0, 0.0, 2.0, 5.0, 10.0],
+            "b": [1.0, 3.0, 3.0, 7.0, 9.0],
+        }
+    )
+    X_source = pd.DataFrame(
+        {
+            "a": [0.0, 2.0, 5.0, 10.0],
+            "b": [1.0, 3.0, 7.0, 9.0],
+        }
+    )
+    X_target = pd.DataFrame(
+        {
+            "a": [0.0, 6.0, 9.0],
+            "b": [2.0, 7.0, 8.0],
+        }
+    )
+
+    strategy = ECDFDistanceStrategy(original_data=original_data, base_metric="euclidean")
+
+    distances, indices = strategy.nearest_neighbors(X_source, X_target, k=1)
+    full_matrix = strategy.cdist(X_target, X_source)
+
+    assert np.allclose(distances[:, 0], np.min(full_matrix, axis=1))
+    assert np.array_equal(indices[:, 0], np.argmin(full_matrix, axis=1))
