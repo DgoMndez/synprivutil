@@ -1,3 +1,6 @@
+import time
+from pathlib import Path
+
 import pandas as pd
 
 from privacy_utility_framework.metrics.utility_metrics.statistical.basic_stats import (
@@ -23,21 +26,33 @@ from privacy_utility_framework.metrics.utility_metrics.utility_metric_manager im
     UtilityMetricManager,
 )
 
+BASE_DIR = Path(__file__).parent
+
+
+def _get_path(filename: str) -> str:
+    return str(BASE_DIR.parent / filename)
+
 
 def wasserstein_example():
     synthetic_datasets = ["copulagan", "ctgan", "gaussian_copula", "gmm", "tvae", "random"]
     original_datasets = ["diabetes"]
-    all_wasserstein_distances = {method: [] for method in WassersteinMethod}
+    methods = [WassersteinMethod.SINKHORN, WassersteinMethod.WASSERSTEIN_SAMPLE]
+    all_wasserstein_distances = {method: [] for method in methods}
     print(all_wasserstein_distances)
     for orig in original_datasets:
         for syn in synthetic_datasets:
             print(f"~~~PAIR: {orig, syn}~~~")
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(_get_path(f"datasets/original/{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _get_path(f"datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
             for method in all_wasserstein_distances:
+                t0 = time.time()
                 calc = WassersteinCalculator(original_data, synthetic_data)
-                res = calc.evaluate(metric=method)
+                res = calc.evaluate(metric=method, n_samples=50)
                 all_wasserstein_distances[method].append(res)
+                t1 = time.time()
+                print(f"{method.value} distance: {res:.4f} (computed in {t1 - t0:.2f} seconds)")
 
 
 def mutual_information_example():
@@ -46,8 +61,10 @@ def mutual_information_example():
 
     for orig in original_datasets:
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(_get_path(f"datasets/original/{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _get_path(f"datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
 
             calc = MICalculator(original_data, synthetic_data)
             print(f"~~~Pair: {orig, syn}~~~\n")
@@ -59,8 +76,10 @@ def ks_example():
     original_datasets = ["insurance", "diabetes"]
     for orig in original_datasets:
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(_get_path(f"datasets/original/{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _get_path(f"datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
             calc = KSCalculator(original_data, synthetic_data)
             print(f"~~~Pair: {orig, syn}~~~\n")
             print(calc.evaluate())
@@ -71,9 +90,11 @@ def js_similarity_example():
     original_datasets = ["cardio", "insurance", "diabetes"]
 
     for orig in original_datasets:
-        original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
+        original_data = pd.read_csv(_get_path(f"datasets/original/{orig}.csv"))
         for syn in synthetic_datasets:
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            synthetic_data = pd.read_csv(
+                _get_path(f"datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
             calc = JSCalculator(original_data, synthetic_data)
             score = calc.evaluate()
             print(f"~~~Pair: {orig, syn}~~~")
@@ -85,8 +106,10 @@ def correlation_example():
     original_datasets = ["insurance", "diabetes"]
     for orig in original_datasets:
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(_get_path(f"datasets/original/{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _get_path(f"datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
             calc = CorrelationCalculator(original_data, synthetic_data)
             print(f"~~~Pair: {orig, syn}~~~")
             print(f"{calc.evaluate()}\n")
@@ -97,8 +120,10 @@ def basic_stats_example():
     original_datasets = ["diabetes", "cardio", "insurance"]
     for orig in original_datasets:
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(_get_path(f"datasets/original/{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                _get_path(f"datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
             calc = BasicStatsCalculator(original_data, synthetic_data)
             res = calc.evaluate()
             print(f"PAIR {orig, syn}")
@@ -106,8 +131,10 @@ def basic_stats_example():
 
 
 def utility_metric_manager_example():
-    original_data = pd.read_csv("../datasets/original/insurance.csv")
-    synthetic_data = pd.read_csv("../datasets/synthetic/insurance_datasets/ctgan_sample.csv")
+    original_data = pd.read_csv(_get_path("datasets/original/insurance.csv"))
+    synthetic_data = pd.read_csv(
+        _get_path("datasets/synthetic/insurance_datasets/ctgan_sample.csv")
+    )
     original_name = "Insurance"
     synthetic_name = "CTGAN"
     p = UtilityMetricManager()
@@ -131,10 +158,10 @@ def utility_metric_manager_example():
         print(f"{key}: {value}")
 
 
-# wasserstein_example()
-# mutual_information_example()
-# ks_example()
-# js_similarity_example()
-# correlation_example()
-# basic_stats_example()
-# utility_metric_manager_example()
+wasserstein_example()
+mutual_information_example()
+ks_example()
+js_similarity_example()
+correlation_example()
+basic_stats_example()
+utility_metric_manager_example()

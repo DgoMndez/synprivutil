@@ -1,3 +1,12 @@
+"""
+Module: examples/plots.py
+Description: Examples of synthetic data evaluation metric plots.
+
+Creation Date: 30/10/2024
+"""
+
+import os
+
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -21,6 +30,16 @@ from privacy_utility_framework.plots.plots import (
     plot_pairwise_relationships,
 )
 
+_BASE_DIR = os.path.dirname(__file__)
+
+
+def _get_path(filename: str) -> str:
+    return os.path.join(_BASE_DIR, filename)
+
+
+_DATA_PATH = _get_path("../datasets")
+_PLOT_PATH = _get_path("../plots")
+
 
 def wasserstein_plot_example():
     synthetic_datasets = ["copulagan", "ctgan", "gaussian_copula", "gmm", "tvae", "random"]
@@ -30,8 +49,10 @@ def wasserstein_plot_example():
     for orig in original_datasets:
         for syn in synthetic_datasets:
             print(f"~~~PAIR: {orig, syn}~~~")
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(os.path.join(_DATA_PATH, "original", f"{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                os.path.join(_DATA_PATH, "synthetic", f"{orig}_datasets/{syn}_sample.csv")
+            )
             for method in all_wasserstein_distances:
                 calc = WassersteinCalculator(original_data, synthetic_data)
                 res = calc.evaluate(metric=method)
@@ -64,8 +85,10 @@ def wasserstein_plot_example():
 
 
 def mutual_information_plot_example():
-    original_data = pd.read_csv("../datasets/original/diabetes.csv")
-    synthetic_data = pd.read_csv("../datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
+    original_data = pd.read_csv(os.path.join(_DATA_PATH, "original/diabetes.csv"))
+    synthetic_data = pd.read_csv(
+        os.path.join(_DATA_PATH, "synthetic/diabetes_datasets/ctgan_sample.csv")
+    )
 
     mutual_information_heatmap(
         original_data, synthetic_data, "diabetes_ctgan_pairwise_norm_mi.png", "dia", "ctgan"
@@ -73,8 +96,10 @@ def mutual_information_plot_example():
 
 
 def pairwise_plot_example():
-    original_data = pd.read_csv("../datasets/original/diabetes.csv")
-    synthetic_data = pd.read_csv("../datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
+    original_data = pd.read_csv(os.path.join(_DATA_PATH, "original/diabetes.csv"))
+    synthetic_data = pd.read_csv(
+        os.path.join(_DATA_PATH, "synthetic/diabetes_datasets/ctgan_sample.csv")
+    )
     manager = DatasetManager.from_dataframes(original_data, synthetic_data)
 
     # Set the transformer and scaler for the datasets
@@ -91,8 +116,10 @@ def pairwise_plot_example():
 
 
 def plot_attributes_example():
-    original_data = pd.read_csv("../datasets/original/diabetes.csv")
-    synthetic_data = pd.read_csv("../datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
+    original_data = pd.read_csv(os.path.join(_DATA_PATH, "original/diabetes.csv"))
+    synthetic_data = pd.read_csv(
+        os.path.join(_DATA_PATH, "synthetic/diabetes_datasets/ctgan_sample.csv")
+    )
 
     manager = DatasetManager.from_dataframes(original_data, synthetic_data)
 
@@ -114,8 +141,10 @@ def ks_test_plot_comparison():
     for orig in original_datasets:
         similarities = []
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(os.path.join(_DATA_PATH, f"original/{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                os.path.join(_DATA_PATH, f"synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
             calc = KSCalculator(original_data, synthetic_data)
             result = calc.evaluate()
             similarities.append(result)
@@ -140,8 +169,10 @@ def correlation_plot_example():
 
     for orig in original_datasets:
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(os.path.join(_DATA_PATH, f"original/{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                os.path.join(_DATA_PATH, f"synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
             correlation_plot_heatmap(
                 original_data, synthetic_data, original_name=orig, synthetic_name=syn
             )
@@ -154,8 +185,10 @@ def basic_stats_plot_example():
     for orig in original_datasets:
         all_stats = {}
         for syn in synthetic_datasets:
-            original_data = pd.read_csv(f"../datasets/original/{orig}.csv")
-            synthetic_data = pd.read_csv(f"../datasets/synthetic/{orig}_datasets/{syn}_sample.csv")
+            original_data = pd.read_csv(os.path.join(_DATA_PATH, f"original/{orig}.csv"))
+            synthetic_data = pd.read_csv(
+                os.path.join(_DATA_PATH, f"synthetic/{orig}_datasets/{syn}_sample.csv")
+            )
             calc = BasicStatsCalculator(original_data, synthetic_data)
             print(f"PAIR {orig, syn}")
             all_stats[f"{orig}_{syn}"] = calc.compute_basic_stats()
@@ -163,10 +196,10 @@ def basic_stats_plot_example():
             plot_all_stats_for_stat(all_stats, stat, orig)
 
 
-# mutual_information_plot_example()
-# pairwise_plot_example()
-# plot_attributes_example()
-# ks_test_plot_comparison()
-# correlation_plot_example()
-# wasserstein_plot_example()
-# basic_stats_plot_example()
+mutual_information_plot_example()
+pairwise_plot_example()
+plot_attributes_example()
+ks_test_plot_comparison()
+correlation_plot_example()
+wasserstein_plot_example()
+basic_stats_plot_example()

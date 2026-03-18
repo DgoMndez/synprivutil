@@ -3,11 +3,11 @@ import os
 import numpy as np
 import pandas as pd
 import scipy
-from rdt import HyperTransformer
-from rdt.transformers import BaseTransformer
 from scipy import stats
 
 from privacy_utility_framework.dataset.dataset import Dataset, DatasetManager
+from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.transformers import ColumnTransformer
 
 DATASETS_PATH = os.path.join(os.path.dirname(__file__), "../datasets/")
 
@@ -27,6 +27,9 @@ def test_dataset_transform_roundtrip():
     reversed_data = dataset.hypertransformer.reverse_transform(dataset.transformed_data)
 
     assert list(reversed_data.columns) == list(original.columns)
+    for col in original.columns:
+        assert reversed_data[col].dtype == original[col].dtype
+
     numeric_cols = original.select_dtypes(include=[float, int]).columns
     for col in numeric_cols:
         assert np.allclose(
@@ -94,7 +97,7 @@ def test_custom_hypertransformer():
         os.path.join(DATASETS_PATH, "synthetic/insurance_datasets/ctgan_sample.csv")
     )
     dm = DatasetManager.from_dataframes(original, synthetic)
-    hypertransformer = HyperTransformer()
+    hypertransformer = TableTransformer()
     hypertransformer._learn_config(original)
     hypertransformer.update_transformers_by_sdtype(
         sdtype="numerical",
@@ -139,7 +142,7 @@ def test_custom_hypertransformer():
     cat_cols = original.select_dtypes(include=["object", "category"]).columns
     output_cat_cols = []
     for col in cat_cols:
-        t: BaseTransformer = hypertransformer.field_transformers[col]
+        t: ColumnTransformer = hypertransformer.column_transformers[col]
         aux = t.get_output_columns()
         output_cat_cols.extend(aux)
 

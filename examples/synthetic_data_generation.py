@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import pandas as pd
 from sdv.metadata import SingleTableMetadata
 
@@ -10,12 +13,21 @@ from privacy_utility_framework.synthesizers.synthesizers import (
     TVAEModel,
 )
 
+_BASE_DIR = Path(__file__).resolve().parent
+
+
+def _get_path(filename: str) -> str:
+    return os.path.join(_BASE_DIR, filename)
+
+
+_DATA_PATH = _get_path("../datasets")
+
 
 def syn_generation_example():
     # Define the original dataset name
     orig = "insurance"
     # Specify the folder for saving datasets
-    folder = f"{orig}_datasets"
+    folder = _get_path(f"{orig}_datasets")
 
     # Flag indicating whether to use the training dataset
     use_train = True
@@ -26,13 +38,13 @@ def syn_generation_example():
     # Load the appropriate dataset based on the use_train flag
     if use_train:
         # Load the training dataset from the specified path
-        data = pd.read_csv(f"../examples/{orig}_datasets/train/{orig}.csv", delimiter=",")
+        data = pd.read_csv(_get_path(f"{orig}_datasets/train/{orig}.csv"), delimiter=",")
         # Adjust the folder path for synthetic data generation
         folder = f"{folder}/syn_on_train"
 
     else:
         # Load the original dataset if not using training data
-        data = pd.read_csv(f"../datasets/original/{orig}.csv", delimiter=",")
+        data = pd.read_csv(_get_path(f"datasets/original/{orig}.csv"), delimiter=",")
 
     # Generate new synthetic data if the flag is set
     if generate_new_syn:
@@ -83,7 +95,7 @@ def syn_generation_example():
 
 def load_model_example():
     # Load a previously saved CTGAN model from the specified path
-    ctgan_model = CTGANModel.load_model("../examples/insurance_datasets/ctgan_model.pkl")
+    ctgan_model = CTGANModel.load_model(_get_path("./insurance_datasets/ctgan_model.pkl"))
     # Generate samples from the loaded CTGAN model
     samples_from_loaded_model = ctgan_model.sample(10)
     print(f"~~~~~Samples from loaded CTGAN Model~~~~~\n {samples_from_loaded_model}")

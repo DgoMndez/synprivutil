@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
-from privacy_utility_framework.dataset.transformers import QuantileRDTransformer
+from privacy_utility_framework.dataset.transformers import QuantileColTransformer
 from privacy_utility_framework.utils.distance.distance import (
     ecdf_cdist,
     quantile_cdist,
@@ -85,7 +85,7 @@ def test_quantile_cdist():
     column2 = np.linspace(110, 200, 10)
     original_data = pd.DataFrame({"col1": column1, "col2": column2})
 
-    class RankQuantileMockTransformer(QuantileRDTransformer):
+    class RankQuantileMockTransformer(QuantileColTransformer):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self._sorted_values = None

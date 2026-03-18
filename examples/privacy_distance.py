@@ -1,3 +1,10 @@
+"""
+Module: examples/privacy_distance.py
+Description: Example script for privacy distance metrics using PrivacyUtilityFramework.
+
+Creation Date: 30/10/2024
+"""
+
 import time
 import warnings
 from pathlib import Path
@@ -22,7 +29,8 @@ from privacy_utility_framework.metrics.privacy_metrics.privacy_metric_manager im
     PrivacyMetricManager,
 )
 
-BASE_DIR = Path(__file__).resolve().parent
+RANDOM_STATE = 7428
+BASE_DIR = Path(__file__).parent
 DATASETS_DIR = BASE_DIR.parent / "datasets"
 
 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -231,7 +239,7 @@ def privacy_metric_manager_quantile_example():
 def privacy_metric_manager_ecdf_example():
     print("~~~~~~~~~PRIVACY METRICS (ECDF DISTANCE)~~~~~~~~~~")
     datasets = ["diabetes", "insurance", "cardio"]
-    synthetizers = ["copulagan", "ctgan"]
+    synthetizers = ["copulagan", "ctgan", "gmm", "tvae", "random"]
 
     for orig in datasets:
         for syn in synthetizers:
@@ -260,7 +268,8 @@ def privacy_metric_manager_ecdf_example():
                     original_name=original_name,
                     synthetic_name=synthetic_name,
                     distance_strategy="ecdf",
-                    nn_samples=50,
+                    nn_samples=1000,
+                    nn_random_state=RANDOM_STATE,
                     **metric_args,
                 ),
             ]
@@ -270,9 +279,9 @@ def privacy_metric_manager_ecdf_example():
                 print(f"{key}: {value}")
 
 
-# dcr_example()
-# nndr_example()
-# nnaa_example()
-# privacy_metric_manager_example()
-# privacy_metric_manager_quantile_example()
+dcr_example()
+nndr_example()
+nnaa_example()
+privacy_metric_manager_example()
+privacy_metric_manager_quantile_example()
 privacy_metric_manager_ecdf_example()

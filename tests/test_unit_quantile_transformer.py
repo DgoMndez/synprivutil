@@ -10,7 +10,7 @@ Date of creation: 02/03/2026
 import numpy as np
 import pandas as pd
 
-from privacy_utility_framework.dataset.transformers import QuantileRDTransformer
+from privacy_utility_framework.dataset.transformers import QuantileColTransformer
 
 
 def test_quantile_rd_transformer():
@@ -21,7 +21,7 @@ def test_quantile_rd_transformer():
         data = pd.DataFrame({"A": x})
 
         # Initialize the QuantileRDTransformer
-        transformer = QuantileRDTransformer(
+        transformer = QuantileColTransformer(
             n_quantiles=0, subsample=None, output_distribution="uniform"
         )
 
@@ -44,7 +44,7 @@ def test_quantile_rd_transformer():
 
 
 def test_revert_data():
-    transformer = QuantileRDTransformer()
+    transformer = QuantileColTransformer()
     for i in range(10):
         n = 1 << (i + 1)
         r = np.random.rand(n, 2 * i) * 100

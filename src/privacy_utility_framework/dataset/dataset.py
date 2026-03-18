@@ -2,15 +2,18 @@ from copy import deepcopy
 from functools import lru_cache
 
 import pandas as pd
-import rdt.transformers
-from rdt import HyperTransformer
-from rdt.transformers import OneHotEncoder
 
-from privacy_utility_framework.dataset.transformers import MinMaxScalerTransformer
+from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.transformers import (
+    MinMaxScalerTransformer,
+    OneHotEncoder,
+    get_default_transformer,
+    get_default_transformers,
+)
 
 
 class Dataset:
-    def __init__(self, data: pd.DataFrame, name="", transformer: HyperTransformer = None):
+    def __init__(self, data: pd.DataFrame, name="", transformer: TableTransformer = None):
         """
         Initialize a dataset with data and an optional name.
 
@@ -20,7 +23,7 @@ class Dataset:
         """
         self.data = data
         self.name = name
-        self.hypertransformer: HyperTransformer = transformer
+        self.hypertransformer: TableTransformer = transformer
         if transformer is None:
             self.set_hypertransformer(fit=False)
         self.transformed_data = None
@@ -34,17 +37,17 @@ class Dataset:
         """
         return self.hypertransformer
 
-    def set_hypertransformer(self, transformer: HyperTransformer = None, fit=True):
+    def set_hypertransformer(self, transformer: TableTransformer = None, fit=True):
         """
         Set the transformer for the dataset, optionally fitting it to the data.
         
-        This transformer, from RDT HyperTransformer, may transform every feature in the dataset, \
+        This transformer may transform every feature in the dataset, \
             whether numerical or categorical, based on its configuration.
         
         If a transformer is provided, it will be used; otherwise, a default HyperTransformer \
         will be initialized and fitted to the data, that consist of a OneHotEncoder for \
         categorical columns, a MinMaxScalerTransformer for numeric columns \
-        and the default transformer in RDT for other data types.
+        and the framework default transformer for other data types.
 
         Args:
             transformer (HyperTransformer): The transformer to be set for the dataset.
@@ -53,7 +56,7 @@ class Dataset:
         if transformer is not None:
             self.hypertransformer = transformer
         else:
-            self.hypertransformer = HyperTransformer()
+            self.hypertransformer = TableTransformer()
             self.hypertransformer._learn_config(data=self.data)
             cat_cols = self.data.select_dtypes(include=["object", "category"]).columns
             num_cols = self.data.select_dtypes(include=[float, int]).columns
@@ -113,7 +116,7 @@ class Dataset:
 
     _DEFAULT_TRANSFORMERS = {"numerical": MinMaxScalerTransformer(), "categorical": OneHotEncoder()}
 
-    _LRU_MAXSIZE = len(HyperTransformer._get_supported_sdtypes())
+    _LRU_MAXSIZE = len(TableTransformer.get_supported_sdtypes())
 
     @classmethod
     @lru_cache(maxsize=_LRU_MAXSIZE)
@@ -123,9 +126,9 @@ class Dataset:
         """
         val = cls._DEFAULT_TRANSFORMERS.get(sdtype)
         if val is None:
-            return rdt.transformers.get_default_transformer(sdtype)
-        else:
-            return deepcopy(val)
+            return get_default_transformer(sdtype)
+
+        return deepcopy(val)
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -133,7 +136,7 @@ class Dataset:
         """
         Return the default transformers for all supported sdtypes.
         """
-        transformers = rdt.transformers.get_default_transformers()
+        transformers = get_default_transformers()
         transformers.update(cls._DEFAULT_TRANSFORMERS)
         return transformers
 
@@ -204,7 +207,7 @@ class DatasetManager:
         """
         return cls(original_dataset, synthetic_dataset)
 
-    def set_hypertransformer(self, transformer: HyperTransformer = None):
+    def set_hypertransformer(self, transformer: TableTransformer = None):
         """
         Sets up the hypertransformer on the original dataset and fits it if not already fitted,
         then applies the same hypertransformer to the synthetic dataset.

@@ -1,3 +1,10 @@
+"""
+Module: examples/privacy_attacks.py
+Description: Example of privacy attack-based metric evaluations.
+
+Creation Date: 30/10/2024
+"""
+
 from pathlib import Path
 
 import pandas as pd
@@ -13,7 +20,7 @@ from privacy_utility_framework.metrics.privacy_metrics.attacks.singlingout_class
     SinglingOutCalculator,
 )
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).parent
 DATASETS_DIR = BASE_DIR
 
 

@@ -17,11 +17,10 @@ dependencies = [
     "numpy==1.26.4",
     "pandas==2.2.2",
     "POT==0.9.4",
-    "rdt==1.12.3",
     "scikit-learn==1.5.1",
     "scipy==1.13.0",
     "sdv==1.15.0",
-    "seaborn==0.12.2",
+    "seaborn>=0.13",
 ]
 
 [tool.setuptools]

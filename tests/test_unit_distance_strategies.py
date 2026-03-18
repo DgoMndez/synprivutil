@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
 
-from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileRDTransformer
+from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileColTransformer
 from privacy_utility_framework.utils.distance.distance import ecdf_cdist, quantile_cdist
 from privacy_utility_framework.utils.distance.strategies import (
     CustomDistanceStrategy,
@@ -24,7 +24,7 @@ class IdentityHyperTransformer:
         return X.copy()
 
 
-class RankQuantileMockTransformer(QuantileRDTransformer):
+class RankQuantileMockTransformer(QuantileColTransformer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._sorted_values = None

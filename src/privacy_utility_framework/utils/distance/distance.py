@@ -16,10 +16,10 @@ from collections.abc import Callable
 
 import numpy as np
 import pandas as pd
-from rdt import HyperTransformer
 from scipy.spatial import distance
 
-from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileRDTransformer
+from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileColTransformer
 
 
 def _to_2d_array(data):
@@ -56,10 +56,10 @@ def _to_dataframe(data, columns):
 
 
 def _get_quantile_hypertransformer(
-    original_data, qt_factory=QuantileRDTransformer, output_distribution="uniform", **kwargs
+    original_data, qt_factory=QuantileColTransformer, output_distribution="uniform", **kwargs
 ):
     transformer = qt_factory(output_distribution=output_distribution, **kwargs)
-    hypertransformer = HyperTransformer()
+    hypertransformer = TableTransformer()
     hypertransformer._learn_config(original_data)
     hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
     hypertransformer.fit(original_data)
@@ -68,7 +68,7 @@ def _get_quantile_hypertransformer(
 
 def _get_ecdf_hypertransformer(original_data, ecdf_factory=ECDFTransformer, **kwargs):
     transformer = ecdf_factory(**kwargs)
-    hypertransformer = HyperTransformer()
+    hypertransformer = TableTransformer()
     hypertransformer._learn_config(original_data)
     hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
     hypertransformer.fit(original_data)
@@ -147,7 +147,7 @@ def _ecdf_distance_matrix_from_bounds(
 
 
 def transformed_dist(
-    u, v, *, hypertransformer: HyperTransformer, base_metric: str | Callable = "euclidean", **kwargs
+    u, v, *, hypertransformer: TableTransformer, base_metric: str | Callable = "euclidean", **kwargs
 ):
     """
     Compute distance between two 1-D arrays after applying a hypertransformer.
@@ -178,7 +178,7 @@ def transformed_dist(
 def transformed_cdist(
     XA,
     XB,
-    hypertransformer: HyperTransformer,
+    hypertransformer: TableTransformer,
     base_metric: str | Callable = "euclidean",
     *,
     out=None,
@@ -235,7 +235,7 @@ def quantile_dist(
     original_data,
     base_metric: str | Callable = "euclidean",
     output_distribution="uniform",
-    qt_factory=QuantileRDTransformer,
+    qt_factory=QuantileColTransformer,
     **kwargs,
 ):
     """
@@ -282,7 +282,7 @@ def quantile_pdist(
     original_data,
     base_metric: str | Callable = "euclidean",
     output_distribution="uniform",
-    qt_factory=QuantileRDTransformer,
+    qt_factory=QuantileColTransformer,
     **kwargs,
 ):
     """
@@ -320,7 +320,7 @@ def quantile_pdist(
         "X and original_data must have the same number of columns."
     )
     transformer = qt_factory(output_distribution=output_distribution)
-    hypertransformer = HyperTransformer()
+    hypertransformer = TableTransformer()
     hypertransformer._learn_config(original_data)
     hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
     hypertransformer.fit(original_data)
@@ -334,7 +334,7 @@ def quantile_cdist(
     base_metric="euclidean",
     output_distribution="uniform",
     original_data=None,
-    qt_factory=QuantileRDTransformer,
+    qt_factory=QuantileColTransformer,
     *,
     out=None,
     **kwargs,

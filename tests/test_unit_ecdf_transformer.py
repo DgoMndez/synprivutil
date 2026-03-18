@@ -240,7 +240,7 @@ class TestECDFTransformerErrorHandling:
             transformer.reverse_transform(data)
 
     def test_non_existing_column_raises_error(self):
-        """Using an unknown column should fail through BaseTransformer path."""
+        """Using an unknown column should fail through ColumnTransformer path."""
         data = pd.DataFrame({"values": [1.0, 2.0, 3.0]})
         transformer = ECDFTransformer(random_state=_get_seed())
 

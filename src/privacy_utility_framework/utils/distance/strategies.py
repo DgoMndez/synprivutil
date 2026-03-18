@@ -6,11 +6,11 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 from humanize import naturalsize
-from rdt import HyperTransformer
 from scipy.spatial import distance
 from sklearn.neighbors import NearestNeighbors
 
-from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileRDTransformer
+from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileColTransformer
 
 from .distance import (
     _build_ecdf_references,
@@ -365,7 +365,7 @@ class TransformedDistanceStrategy(DistanceStrategy):
 
     def __init__(
         self,
-        hypertransformer: HyperTransformer,
+        hypertransformer: TableTransformer,
         base_metric="euclidean",
         default_args: dict | None = None,
         **kwargs,
@@ -410,7 +410,7 @@ class TransformedDistanceStrategy(DistanceStrategy):
         return self._hypertransformer
 
     @hypertransformer.setter
-    def hypertransformer(self, value: HyperTransformer):
+    def hypertransformer(self, value: TableTransformer):
         self._hypertransformer = value
 
     @property
@@ -448,7 +448,7 @@ class QuantileDistanceStrategy(TransformedDistanceStrategy):
         original_data: pd.DataFrame,
         base_metric="euclidean",
         output_distribution="uniform",
-        qt_factory=QuantileRDTransformer,
+        qt_factory=QuantileColTransformer,
         default_args: dict | None = None,
         **kwargs,
     ):
