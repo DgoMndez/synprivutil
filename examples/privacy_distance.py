@@ -48,7 +48,10 @@ def dcr_example():
     )
 
     test_dcr_calculator = DCRCalculator(
-        original_data, synthetic_data, weights=[1, 1, 1, 1, 1, 1, 1, 1, 1]
+        original_data,
+        synthetic_data,
+        preprocess=True,
+        weights=[1, 1, 1, 1, 1, 1, 1, 1, 1],
     )
     test_dcr = test_dcr_calculator.evaluate()
     print(f"DCR (diabetes, ctgan): {test_dcr}")
@@ -65,7 +68,11 @@ def nndr_example():
             synthetic_data = pd.read_csv(
                 _dataset_path("synthetic", f"{orig}_datasets", f"{syn}_sample.csv")
             )
-            test_nndr_calculator = NNDRCalculator(original_data, synthetic_data)
+            test_nndr_calculator = NNDRCalculator(
+                original_data,
+                synthetic_data,
+                preprocess=True,
+            )
             test_nndr = test_nndr_calculator.evaluate()
             print(f"NNDR {orig, syn}: {test_nndr}")
 
@@ -89,7 +96,11 @@ def nnaa_example():
 
             try:
                 t0 = time.time()
-                calculator_cdist = AdversarialAccuracyCalculator(original_data, synthetic_data)
+                calculator_cdist = AdversarialAccuracyCalculator(
+                    original_data,
+                    synthetic_data,
+                    preprocess=True,
+                )
                 nnaa1 = calculator_cdist.evaluate()
                 t1 = time.time()
                 print(nnaa1)
@@ -98,7 +109,11 @@ def nnaa_example():
                 print(f"Error calculating NNAA with CDIST for {orig, syn}: {e}")
 
             print(f"~~~~~~Adversarial Accuracy NN~~~~~~ {orig, syn}")
-            calculator_nn = AdversarialAccuracyCalculator_NN(original_data, synthetic_data)
+            calculator_nn = AdversarialAccuracyCalculator_NN(
+                original_data,
+                synthetic_data,
+                preprocess=True,
+            )
             nnaa2 = calculator_nn.evaluate()
             print(nnaa2)
 
@@ -149,18 +164,21 @@ def privacy_metric_manager_example():
             synthetic_data,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            preprocess=True,
         ),
         NNDRCalculator(
             original_data,
             synthetic_data,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            preprocess=True,
         ),
         AdversarialAccuracyCalculator(
             original_data,
             synthetic_data,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            preprocess=True,
         ),
     ]
     p.add_metric(metric_list)
@@ -202,6 +220,7 @@ def privacy_metric_manager_quantile_example():
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
+                    preprocess=True,
                     distance_strategy="quantile",
                     **quantile_metric_args,
                 ),
@@ -210,6 +229,7 @@ def privacy_metric_manager_quantile_example():
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
+                    preprocess=True,
                     distance_strategy="quantile",
                     **quantile_metric_args,
                 ),
@@ -218,6 +238,7 @@ def privacy_metric_manager_quantile_example():
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
+                    preprocess=True,
                     distance_strategy="quantile",
                     **quantile_metric_args,
                 ),
@@ -226,6 +247,7 @@ def privacy_metric_manager_quantile_example():
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
+                    preprocess=True,
                     distance_strategy="quantile",
                     **quantile_metric_args,
                 ),
@@ -267,6 +289,7 @@ def privacy_metric_manager_ecdf_example():
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
+                    preprocess=True,
                     distance_strategy="ecdf",
                     nn_samples=1000,
                     nn_random_state=RANDOM_STATE,

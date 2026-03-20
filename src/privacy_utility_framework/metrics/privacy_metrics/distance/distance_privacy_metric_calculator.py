@@ -35,9 +35,18 @@ class DistancePrivacyMetricCalculator(PrivacyMetricCalculator):
         distance_strategy: str | Callable | DistanceStrategy = "euclidean",
         original_name: str = None,
         synthetic_name: str = None,
+        preprocess: bool = False,
+        preprocessor=None,
         **kwargs,
     ):
-        super().__init__(original, synthetic, original_name, synthetic_name)
+        super().__init__(
+            original,
+            synthetic,
+            original_name,
+            synthetic_name,
+            preprocess=preprocess,
+            preprocessor=preprocessor,
+        )
         self.distance_strategy = self._resolve_distance_strategy(distance_strategy, **kwargs)
 
     @staticmethod

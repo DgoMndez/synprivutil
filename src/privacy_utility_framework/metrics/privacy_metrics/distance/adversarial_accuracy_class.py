@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.utils.distance.strategies import DistanceStrategy
 
 from .distance_privacy_metric_calculator import (
@@ -22,6 +23,8 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
         distance_strategy: str | DistanceStrategy = "euclidean",
         original_name: str = None,
         synthetic_name: str = None,
+        preprocess: bool = False,
+        preprocessor: TableTransformer | None = None,
         nn_samples: int = 0,
         nn_random_state: int = None,
         **kwargs,
@@ -37,6 +40,9 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
             distance_strategy (str or DistanceStrategy): The distance strategy to use.
             original_name (str, optional): Name for the original dataset (default: None).
             synthetic_name (str, optional): Name for the synthetic dataset (default: None).
+            preprocess (bool, optional): Whether to preprocess both datasets before evaluation.
+            preprocessor (TableTransformer, optional): Optional transformer to reuse when
+                preprocessing is enabled.
             nn_samples (int, optional): Number of samples used in mean nearest neighbor distance \
                 stimations. If 0 or less, all samples are used (default: 0).
             nn_random_state (int, optional): Random state for sampling in nearest neighbor \
@@ -52,6 +58,8 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
             distance_strategy=distance_strategy,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            preprocess=preprocess,
+            preprocessor=preprocessor,
             **kwargs,
         )
         self.nn_samples = nn_samples
@@ -86,10 +94,9 @@ class AdversarialAccuracyCalculator(DistancePrivacyMetricCalculator):
                 - M_{i,j,k} is the distance from record k in dataset i \
                     to its nearest neighbor in dataset j.
         """
-        # The transformed and normalized data is used for the NNAA
-
-        original = self.original.transformed_data
-        synthetic = self.synthetic.transformed_data
+        # Use transformed data when available; otherwise compare the user-provided data directly.
+        original = self._get_comparison_data(self.original)
+        synthetic = self._get_comparison_data(self.synthetic)
 
         aux_list = [original, synthetic]
         sampled_data = [
@@ -169,6 +176,8 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
         distance_strategy: str | DistanceStrategy = "euclidean",
         original_name: str = None,
         synthetic_name: str = None,
+        preprocess: bool = False,
+        preprocessor: TableTransformer | None = None,
         nn_samples: int = 0,
         nn_random_state: int = None,
         **kwargs,
@@ -181,6 +190,9 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             distance_metric (str or Callable): The distance metric to use for nearest neighbor \
                 calculations. It must be admissible by sklearn's NearestNeighbors.
+            preprocess (bool, optional): Whether to preprocess both datasets before evaluation.
+            preprocessor (TableTransformer, optional): Optional transformer to reuse when
+                preprocessing is enabled.
             nn_samples (int, optional): Number of samples used in mean nearest neighbor distance \
                 stimations. If 0 or less, all samples are used (default: 0).
             nn_random_state (int, optional): Random state for sampling in nearest neighbor \
@@ -193,13 +205,15 @@ class AdversarialAccuracyCalculator_NN(DistancePrivacyMetricCalculator):
             distance_strategy=distance_strategy,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            preprocess=preprocess,
+            preprocessor=preprocessor,
             **kwargs,
         )
 
         # Define data for calculation
         self.data = {
-            "original": self.original.transformed_data,
-            "synthetic": self.synthetic.transformed_data,
+            "original": self._get_comparison_data(self.original),
+            "synthetic": self._get_comparison_data(self.synthetic),
         }
         self.dists = {}
         self.nn_samples = nn_samples

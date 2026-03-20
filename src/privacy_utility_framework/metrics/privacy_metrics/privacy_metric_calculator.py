@@ -3,12 +3,15 @@ from abc import ABC, abstractmethod
 import pandas as pd
 
 from privacy_utility_framework.dataset.dataset import Dataset, DatasetManager
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 
 # DONE 1: Add support for callable distance metrics on all distance-based privacy metrics.
 # DONE 2: Admit Datasets apart from DataFrames in the constructor (flexibility).
 # TODO 2.5: accept DatasetManager directly in the constructor and \
 # leave dataframes for another cls method
 # DONE 3: Implement CDF-based distance metrics.
+# TODO 4: Decide whether preprocessing is left to the user or not, and wheter to use
+# default transformer like in the previous version or configurable transformer
 
 
 class PrivacyMetricCalculator(ABC):
@@ -34,13 +37,22 @@ class PrivacyMetricCalculator(ABC):
         synthetic: pd.DataFrame | Dataset,
         original_name: str = None,
         synthetic_name: str = None,
+        preprocess: bool = False,
+        preprocessor: TableTransformer | None = None,
         **kwargs,
     ):
         # Initialize attributes for original and synthetic data
         self._dm = None
 
-        # Perform data transformation and normalization
-        self._transform(original, synthetic, original_name, synthetic_name)
+        # Build datasets and optionally preprocess them for comparison.
+        self._prepare_datasets(
+            original,
+            synthetic,
+            original_name,
+            synthetic_name,
+            preprocess=preprocess,
+            preprocessor=preprocessor,
+        )
         # Perform data validation to ensure compatibility between datasets
         self._validate_data()
 
@@ -52,7 +64,8 @@ class PrivacyMetricCalculator(ABC):
         synthetic_df,
         original_name=None,
         synthetic_name=None,
-        tabletransformer=None,
+        preprocess=False,
+        preprocessor=None,
     ):
         """
         Alternative constructor to create a PrivacyMetricCalculator directly from pandas DataFrames.
@@ -62,8 +75,9 @@ class PrivacyMetricCalculator(ABC):
             synthetic_df (pd.DataFrame): The synthetic dataset as a DataFrame.
             original_name (str, optional): Name for the original dataset. Defaults to None.
             synthetic_name (str, optional): Name for the synthetic dataset. Defaults to None.
-            tabletransformer (TableTransformer, optional): An optional TableTransformer to apply \
-                to both datasets. Defaults to None.
+            preprocess (bool, optional): Whether to preprocess both datasets before evaluation.
+            preprocessor (TableTransformer, optional): Optional transformer to reuse when
+                ``preprocess`` is enabled.
         """
         raise NotImplementedError("Not implemented yet")
 
@@ -79,9 +93,6 @@ class PrivacyMetricCalculator(ABC):
         """
         calculator = cls.__new__(cls)  # Create an uninitialized instance
         calculator._dm = dataset_manager  # Directly assign the provided DatasetManager
-        assert calculator._dm._set_tabletransformer, (
-            "DatasetManager must have a TableTransformer set before using from_datasetmanager."
-        )
         calculator._validate_data()  # Validate the datasets
         return calculator
 
@@ -159,27 +170,33 @@ class PrivacyMetricCalculator(ABC):
             if self.original.data[col].dtype != self.synthetic.data[col].dtype:
                 raise ValueError(f"Data type mismatch in column '{col}'.")
 
-    def _transform(
+    def _prepare_datasets(
         self,
         original: pd.DataFrame | Dataset,
         synthetic: pd.DataFrame | Dataset,
         original_name: str,
         synthetic_name: str,
+        preprocess: bool = False,
+        preprocessor: TableTransformer | None = None,
     ):
         """
-        Transforms both the original and synthetic datasets, \
-            applying encoding or normalization for each column as needed.
+        Build the dataset manager and optionally preprocess both datasets for comparison.
 
         Parameters
         ----------
         original : pd.DataFrame or Dataset
-            The original dataset to transform and normalize.
+            The original dataset to prepare.
         synthetic : pd.DataFrame or Dataset
-            The synthetic dataset to transform and normalize.
+            The synthetic dataset to prepare.
         original_name : str
             The name of the original dataset.
         synthetic_name : str
             The name of the synthetic dataset.
+        preprocess : bool, optional
+            Whether to preprocess both datasets inside the calculator before evaluation.
+        preprocessor : TableTransformer, optional
+            Transformer to fit on the original dataset and reuse on the synthetic dataset when
+            preprocessing is enabled.
         """
         # Initialize DatasetManager from DataFrames or Dataset objects
         self._dm = self._build_dataset_manager(
@@ -189,17 +206,36 @@ class PrivacyMetricCalculator(ABC):
             synthetic_name=synthetic_name,
         )
 
-        # TODO 4: Check if data transformation should be done here or left to the user
-        # Configure the transformer and scaler to apply transformations to datasets
-        if isinstance(original, Dataset):
-            # Respect the transformer already configured on the original Dataset.
-            # This preserves custom transformer choices instead of resetting to defaults.
+        if preprocessor is not None and not isinstance(preprocessor, TableTransformer):
+            raise TypeError("'preprocessor' must be a TableTransformer.")
+
+        if preprocessor is not None:
+            preprocess = True
+
+        if not preprocess:
+            return
+
+        # Respect a caller-provided transformer first. Otherwise, if a Dataset already carries
+        # a configured transformer, reuse it; fall back to the default dataset transformer only
+        # for the opt-in preprocessing path.
+        if preprocessor is not None:
+            self._dm.set_tabletransformer(transformer=preprocessor)
+        elif isinstance(original, Dataset):
             self._dm.set_tabletransformer(transformer=original.get_tabletransformer())
         else:
             self._dm.set_tabletransformer()
 
-        # Perform transformation and normalization on both datasets
         self._dm.transform_datasets()
+
+    @staticmethod
+    def _get_comparison_data(dataset: Dataset) -> pd.DataFrame:
+        """
+        Return the representation to use for metric evaluation.
+
+        Transformed data is used when available; otherwise metrics operate on the original data
+        supplied by the user.
+        """
+        return dataset.transformed_data if dataset.transformed_data is not None else dataset.data
 
     @property
     def dataset_manager(self) -> DatasetManager:

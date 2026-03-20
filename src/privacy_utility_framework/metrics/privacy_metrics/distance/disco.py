@@ -3,6 +3,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.metrics.privacy_metrics import (
     PrivacyMetricCalculator,
 )
@@ -17,6 +18,8 @@ class DisclosureCalculator(PrivacyMetricCalculator):
         target: str,
         original_name: str = None,
         synthetic_name: str = None,
+        preprocess: bool = False,
+        preprocessor: TableTransformer | None = None,
     ):
         """
         Initializes the DisclosureCalculator with datasets.
@@ -26,10 +29,18 @@ class DisclosureCalculator(PrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             original_name (str, optional): Name for the original dataset (default: None).
             synthetic_name (str, optional): Name for the synthetic dataset (default: None).
+            preprocess (bool, optional): Whether to preprocess both datasets before evaluation.
+            preprocessor (TableTransformer, optional): Optional transformer to reuse when
+                preprocessing is enabled.
         """
         # Initialize the superclass with datasets and settings
         super().__init__(
-            original, synthetic, original_name=original_name, synthetic_name=synthetic_name
+            original,
+            synthetic,
+            original_name=original_name,
+            synthetic_name=synthetic_name,
+            preprocess=preprocess,
+            preprocessor=preprocessor,
         )
         self.keys = keys
         self.target = target
@@ -514,8 +525,8 @@ class DisclosureCalculator(PrivacyMetricCalculator):
 
     def evaluate(self) -> tuple[Any, Any]:
         repU, DiSCO = self._disclosure(
-            self.synthetic.transformed_data,
-            self.original.transformed_data,
+            self._get_comparison_data(self.synthetic),
+            self._get_comparison_data(self.original),
             self.keys,
             self.target,
         )

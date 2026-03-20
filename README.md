@@ -125,13 +125,25 @@ p = PrivacyMetricManager()
 
 metric_list = [
     DCRCalculator(
-        original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name
+        original_data,
+        synthetic_data,
+        original_name=original_name,
+        synthetic_name=synthetic_name,
+        preprocess=True,
     ),
     NNDRCalculator(
-        original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name
+        original_data,
+        synthetic_data,
+        original_name=original_name,
+        synthetic_name=synthetic_name,
+        preprocess=True,
     ),
     AdversarialAccuracyCalculator(
-        original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name
+        original_data,
+        synthetic_data,
+        original_name=original_name,
+        synthetic_name=synthetic_name,
+        preprocess=True,
     ),
 ]
 p.add_metric(metric_list)

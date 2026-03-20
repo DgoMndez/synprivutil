@@ -1,6 +1,7 @@
 import pandas as pd
 from anonymeter.evaluators import InferenceEvaluator
 
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.metrics.privacy_metrics import (
     PrivacyMetricCalculator,
 )
@@ -18,6 +19,8 @@ class InferenceCalculator(PrivacyMetricCalculator):
         control: pd.DataFrame | None = None,
         original_name: str = None,
         synthetic_name: str = None,
+        preprocess: bool = False,
+        preprocessor: TableTransformer | None = None,
     ):
         """
         Initializes the InferenceCalculator instance for evaluating inference risk.
@@ -36,6 +39,9 @@ class InferenceCalculator(PrivacyMetricCalculator):
             inference risk.
         - original_name (str, optional): An optional name for the original dataset.
         - synthetic_name (str, optional): An optional name for the synthetic dataset.
+        - preprocess (bool, optional): Whether to preprocess both datasets before evaluation.
+        - preprocessor (TableTransformer, optional): Optional transformer to reuse when
+          preprocessing is enabled.
 
         Raises:
         ValueError: If aux_cols or secret parameters are not provided.
@@ -46,6 +52,8 @@ class InferenceCalculator(PrivacyMetricCalculator):
             aux_cols=aux_cols,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            preprocess=preprocess,
+            preprocessor=preprocessor,
         )
         if aux_cols is None:
             raise ValueError("Parameter 'aux_cols' is required in InferenceCalculator.")

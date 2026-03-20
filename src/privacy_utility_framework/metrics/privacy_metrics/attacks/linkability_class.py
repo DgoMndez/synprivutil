@@ -1,6 +1,7 @@
 import pandas as pd
 from anonymeter.evaluators import LinkabilityEvaluator
 
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.metrics.privacy_metrics import (
     PrivacyMetricCalculator,
 )
@@ -17,6 +18,8 @@ class LinkabilityCalculator(PrivacyMetricCalculator):
         control: pd.DataFrame | None = None,
         original_name: str = None,
         synthetic_name: str = None,
+        preprocess: bool = False,
+        preprocessor: TableTransformer | None = None,
     ):
         """
         Initializes the LinkabilityCalculator instance for evaluating linkability risks.
@@ -32,6 +35,9 @@ class LinkabilityCalculator(PrivacyMetricCalculator):
             linkability risk.
         - original_name (str, optional): An optional name for the original dataset.
         - synthetic_name (str, optional): An optional name for the synthetic dataset.
+        - preprocess (bool, optional): Whether to preprocess both datasets before evaluation.
+        - preprocessor (TableTransformer, optional): Optional transformer to reuse when
+          preprocessing is enabled.
 
         Raises:
         ValueError: If the aux_cols parameter is not provided.
@@ -42,6 +48,8 @@ class LinkabilityCalculator(PrivacyMetricCalculator):
             aux_cols=aux_cols,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            preprocess=preprocess,
+            preprocessor=preprocessor,
         )
         if aux_cols is None:
             raise ValueError("Parameter 'aux_cols' is required in LinkabilityCalculator.")

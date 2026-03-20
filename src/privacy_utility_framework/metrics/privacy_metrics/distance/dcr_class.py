@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
+
 from ....utils.distance.strategies import DistanceStrategy
 from .distance_privacy_metric_calculator import DistancePrivacyMetricCalculator
 
@@ -12,6 +14,8 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
         synthetic: pd.DataFrame,
         original_name: str = None,
         synthetic_name: str = None,
+        preprocess: bool = False,
+        preprocessor: TableTransformer | None = None,
         distance_strategy: str | DistanceStrategy = "euclidean",
         weights: np.ndarray = None,
         **kwargs,
@@ -24,6 +28,9 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
             synthetic (pd.DataFrame): Synthetic dataset.
             original_name (str, optional): Name for the original dataset (default: None).
             synthetic_name (str, optional): Name for the synthetic dataset (default: None).
+            preprocess (bool, optional): Whether to preprocess both datasets before evaluation.
+            preprocessor (TableTransformer, optional): Optional transformer to reuse when
+                preprocessing is enabled.
             distance_strategy (str or DistanceStrategy): The strategy for calculating distances \
                 ('euclidean', 'cityblock', etc.).
             weights (np.ndarray, optional): Array of weights for each feature in the datasets.
@@ -37,11 +44,14 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
             distance_strategy=distance_strategy,
             original_name=original_name,
             synthetic_name=synthetic_name,
+            preprocess=preprocess,
+            preprocessor=preprocessor,
             **kwargs,
         )
 
         # Define feature weights for calculations
-        transformed_feature_count = self.original.transformed_data.shape[1]
+        comparison_data = self._get_comparison_data(self.original)
+        transformed_feature_count = comparison_data.shape[1]
         if weights is None:
             self.weights = np.ones(transformed_feature_count)
         else:
@@ -60,9 +70,9 @@ class DCRCalculator(DistancePrivacyMetricCalculator):
             float: The average minimum distance from each synthetic record to the closest original \
                 record.
         """
-        # Retrieve transformed and normalized data
-        original = self.original.transformed_data
-        synthetic = self.synthetic.transformed_data
+        # Retrieve the representation selected for metric evaluation.
+        original = self._get_comparison_data(self.original)
+        synthetic = self._get_comparison_data(self.synthetic)
 
         # TODO: Check if this is correct (I think not)
         # Apply feature weights to both datasets
