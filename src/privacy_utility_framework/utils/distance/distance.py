@@ -18,11 +18,12 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import distance
 
-from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileColTransformer
 
 
 def _to_2d_array(data):
+    """Normalize 1D or 2D array-like input into a 2D NumPy array."""
     array_data = np.asarray(data)
     if array_data.ndim == 1:
         array_data = array_data.reshape(-1, 1)
@@ -33,12 +34,13 @@ def _to_2d_array(data):
 
 
 def _to_dataframe(data, columns):
+    """Return input data as a dataframe aligned to the expected feature columns."""
     if isinstance(data, pd.DataFrame):
         if columns is not None:
             missing_columns = [column for column in columns if column not in data.columns]
             if missing_columns:
                 raise ValueError(
-                    "Input DataFrame is missing expected columns from HyperTransformer: "
+                    "Input DataFrame is missing expected columns from TableTransformer: "
                     f"{missing_columns}."
                 )
             data = data.loc[:, columns]
@@ -55,24 +57,28 @@ def _to_dataframe(data, columns):
     return pd.DataFrame(array_data, columns=columns)
 
 
-def _get_quantile_hypertransformer(
+def _get_quantile_tabletransformer(
     original_data, qt_factory=QuantileColTransformer, output_distribution="uniform", **kwargs
 ):
+    """
+    Fit a table transformer that applies the configured quantile transform to numerical columns.
+    """
     transformer = qt_factory(output_distribution=output_distribution, **kwargs)
-    hypertransformer = TableTransformer()
-    hypertransformer._learn_config(original_data)
-    hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
-    hypertransformer.fit(original_data)
-    return hypertransformer
+    tabletransformer = TableTransformer()
+    tabletransformer._learn_config(original_data)
+    tabletransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
+    tabletransformer.fit(original_data)
+    return tabletransformer
 
 
-def _get_ecdf_hypertransformer(original_data, ecdf_factory=ECDFTransformer, **kwargs):
+def _get_ecdf_tabletransformer(original_data, ecdf_factory=ECDFTransformer, **kwargs):
+    """Fit a table transformer that applies the configured ECDF transform to numerical columns."""
     transformer = ecdf_factory(**kwargs)
-    hypertransformer = TableTransformer()
-    hypertransformer._learn_config(original_data)
-    hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
-    hypertransformer.fit(original_data)
-    return hypertransformer
+    tabletransformer = TableTransformer()
+    tabletransformer._learn_config(original_data)
+    tabletransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
+    tabletransformer.fit(original_data)
+    return tabletransformer
 
 
 def _build_ecdf_references(original_data, ecdf_factory=ECDFTransformer, **kwargs):
@@ -82,7 +88,7 @@ def _build_ecdf_references(original_data, ecdf_factory=ECDFTransformer, **kwargs
     references = []
     for column in original_data.columns:
         transformer = ecdf_factory(**kwargs)
-        transformer._fit(original_data[column].to_numpy())
+        transformer.fit(data=original_data, column=column)
 
         sorted_values = getattr(transformer, "_sorted_values", None)
         n_samples = getattr(transformer, "_n_samples", None)
@@ -147,10 +153,10 @@ def _ecdf_distance_matrix_from_bounds(
 
 
 def transformed_dist(
-    u, v, *, hypertransformer: TableTransformer, base_metric: str | Callable = "euclidean", **kwargs
+    u, v, *, tabletransformer: TableTransformer, base_metric: str | Callable = "euclidean", **kwargs
 ):
     """
-    Compute distance between two 1-D arrays after applying a hypertransformer.
+    Compute distance between two 1-D arrays after applying a tabletransformer.
 
     Parameters
     ----------
@@ -158,8 +164,8 @@ def transformed_dist(
         First 1-D sample vector.
     v : array_like
         Second 1-D sample vector.
-    hypertransformer : HyperTransformer
-        Fitted HyperTransformer to apply to the samples.
+    tabletransformer : TableTransformer
+        Fitted TableTransformer to apply to the samples.
     base_metric : str or Callable, optional
         Distance metric used by ``scipy.spatial.distance.cdist`` in transformed
         space.
@@ -171,21 +177,21 @@ def transformed_dist(
     float
         Distance between ``u`` and ``v`` in transformed space.
     """
-    X_A, X_B = _transform_samples(u, v, hypertransformer)
+    X_A, X_B = _transform_samples(u, v, tabletransformer)
     return distance.cdist(X_A, X_B, metric=base_metric, **kwargs)[0][0]
 
 
 def transformed_cdist(
     XA,
     XB,
-    hypertransformer: TableTransformer,
+    tabletransformer: TableTransformer,
     base_metric: str | Callable = "euclidean",
     *,
     out=None,
     **kwargs,
 ):
     """
-    Calculate pairwise distances between two samples after applying a hypertransformer.
+    Calculate pairwise distances between two samples after applying a tabletransformer.
 
     Parameters
     ----------
@@ -193,8 +199,8 @@ def transformed_cdist(
         First sample (original).
     XB : array_like, shape (m_B, n_features) or (n_features,)
         Second sample (synthetic).
-    hypertransformer : HyperTransformer
-        Fitted HyperTransformer to apply to the samples.
+    tabletransformer : TableTransformer
+        Fitted TableTransformer to apply to the samples.
     base_metric : str or Callable, optional
         Distance metric used by scipy.spatial.distance.cdist in transformed
         space (default: 'euclidean').
@@ -207,24 +213,24 @@ def transformed_cdist(
         Pairwise distances between rows of XA and XB, computed in transformed space.
     """
 
-    XA_transformed, XB_transformed = _transform_samples(XA, XB, hypertransformer)
+    XA_transformed, XB_transformed = _transform_samples(XA, XB, tabletransformer)
 
     return distance.cdist(XA_transformed, XB_transformed, metric=base_metric, out=out, **kwargs)
 
 
-def _transform_samples(XA, XB, hypertransformer):
-    assert hypertransformer._fitted, (
-        "HyperTransformer must be fitted before calling transformed_cdist."
+def _transform_samples(XA, XB, tabletransformer):
+    assert tabletransformer._fitted, (
+        "TableTransformer must be fitted before calling transformed_cdist."
     )
 
-    input_columns = list(getattr(hypertransformer, "_input_columns", [])) or None
+    input_columns = list(getattr(tabletransformer, "_input_columns", [])) or None
     XA = _to_dataframe(XA, input_columns)
     XB = _to_dataframe(XB, input_columns)
 
     assert XA.shape[1] == XB.shape[1], "XA and XB must have the same number of columns."
 
-    XA_transformed = hypertransformer.transform(XA)
-    XB_transformed = hypertransformer.transform(XB)
+    XA_transformed = tabletransformer.transform(XA)
+    XB_transformed = tabletransformer.transform(XB)
     return XA_transformed, XB_transformed
 
 
@@ -320,11 +326,11 @@ def quantile_pdist(
         "X and original_data must have the same number of columns."
     )
     transformer = qt_factory(output_distribution=output_distribution)
-    hypertransformer = TableTransformer()
-    hypertransformer._learn_config(original_data)
-    hypertransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
-    hypertransformer.fit(original_data)
-    X_transformed = hypertransformer.transform(X)
+    tabletransformer = TableTransformer()
+    tabletransformer._learn_config(original_data)
+    tabletransformer.update_transformers_by_sdtype(transformer=transformer, sdtype="numerical")
+    tabletransformer.fit(original_data)
+    X_transformed = tabletransformer.transform(X)
     return distance.pdist(X_transformed, metric=base_metric, **kwargs)
 
 
@@ -388,11 +394,11 @@ def quantile_cdist(
         "XA, XB, and original_data must have the same number of columns."
     )
 
-    hypertransformer = _get_quantile_hypertransformer(
+    tabletransformer = _get_quantile_tabletransformer(
         original_data=original_data, qt_factory=qt_factory, output_distribution=output_distribution
     )
-    XA_transformed = hypertransformer.transform(XA)
-    XB_transformed = hypertransformer.transform(XB)
+    XA_transformed = tabletransformer.transform(XA)
+    XB_transformed = tabletransformer.transform(XB)
     return distance.cdist(XA_transformed, XB_transformed, metric=base_metric, out=out, **kwargs)
 
 
@@ -405,7 +411,12 @@ def ecdf_dist(
     ecdf_factory=ECDFTransformer,
     **kwargs,
 ):
-    """Compute distance between two 1-D arrays after ECDF transformation."""
+    """
+    Compute distance between two 1-D arrays using the ECDF distance.
+
+    The distance compares the ECDF intervals induced by the reference data rather than relying on
+    a point-valued marginal transform.
+    """
     return ecdf_cdist(
         np.asarray([u]),
         np.asarray([v]),
@@ -424,7 +435,11 @@ def ecdf_pdist(
     ecdf_factory=ECDFTransformer,
     **kwargs,
 ):
-    """Compute pairwise distances between rows of X after ECDF transformation."""
+    """
+    Compute pairwise distances between rows of ``X`` using the ECDF distance.
+
+    The ECDF reference is fitted on ``original_data`` when provided, or on ``X`` itself.
+    """
     if original_data is None:
         assert isinstance(X, pd.DataFrame), (
             "X must be a DataFrame if original_data is not provided."
@@ -456,7 +471,36 @@ def ecdf_cdist(
     out=None,
     **kwargs,
 ):
-    """Calculate distances using ECDF interval gaps per column."""
+    """
+    Calculate distances using ECDF interval gaps per column.
+
+    Instead of transforming each value to a single ECDF score, this metric represents each value
+    by its left/right ECDF bounds and measures how far those intervals are from one another across
+    columns.
+
+    Parameters
+    ----------
+    XA : array_like, shape (m_A, n_features) or (n_features,)
+        First sample.
+    XB : array_like, shape (m_B, n_features) or (n_features,)
+        Second sample.
+    base_metric : str or Callable, optional
+        Base metric used to aggregate per-column ECDF interval gaps.
+    original_data : pd.DataFrame, optional
+        Reference data used to fit the ECDF per column. If ``None``, ``XA`` must be a DataFrame
+        and is used as the reference data.
+    ecdf_factory : class, optional
+        Factory used to create the per-column ECDF transformers.
+    out : ndarray, optional
+        Output buffer receiving the pairwise distance matrix.
+    **kwargs
+        Additional keyword arguments forwarded to the base distance computation.
+
+    Returns
+    -------
+    ndarray
+        Pairwise ECDF distances between rows of ``XA`` and ``XB``.
+    """
     if original_data is None:
         if isinstance(XA, pd.DataFrame):
             original_data = XA
@@ -516,7 +560,7 @@ METRIC_NAMES = list(METRICS.keys())
 
 def custom_dist(u, v, metric: str | Callable = "euclidean", **kwargs):
     """
-    Compute distance between two 1-D arrays using a custom metric.
+    Compute distance between two 1-D arrays using a custom or built-in metric.
 
     Parameters
     ----------
@@ -525,8 +569,9 @@ def custom_dist(u, v, metric: str | Callable = "euclidean", **kwargs):
     v : array_like
         Second 1-D sample vector.
     metric : str or Callable
-        Distance metric to use. If a string, it must be one of the registered custom metrics.
-        If a callable, it should have the same signature as scipy.spatial.distance.cdist.
+        Distance metric to use. Registered project metrics such as ``"quantile"``,
+        ``"transformed"``, and ``"ecdf"`` are supported in addition to scipy metric names.
+        If a callable is provided, it is used directly.
     **kwargs
         Additional keyword arguments forwarded to the distance function.
 
@@ -550,15 +595,16 @@ def custom_dist(u, v, metric: str | Callable = "euclidean", **kwargs):
 
 def custom_pdist(X, metric: str | Callable = "euclidean", **kwargs):
     """
-    Compute pairwise distances between rows of X using a custom metric.
+    Compute pairwise distances between rows of X using a custom or built-in metric.
 
     Parameters
     ----------
     X : array_like, shape (n_samples, n_features)
         Input data.
     metric : str or Callable
-        Distance metric to use. If a string, it must be one of the registered custom metrics.
-        If a callable, it should have the same signature as scipy.spatial.distance.pdist.
+        Distance metric to use. Registered project metrics such as ``"quantile"``,
+        ``"transformed"``, and ``"ecdf"`` are supported in addition to scipy metric names.
+        If a callable is provided, it is used directly.
     **kwargs
         Additional keyword arguments forwarded to the distance function.
 
@@ -582,7 +628,7 @@ def custom_pdist(X, metric: str | Callable = "euclidean", **kwargs):
 
 def custom_cdist(XA, XB, metric: str | Callable = "euclidean", *, out=None, **kwargs):
     """
-    Compute pairwise distances between two samples using a custom metric.
+    Compute pairwise distances between two samples using a custom or built-in metric.
 
     Parameters
     ----------
@@ -591,8 +637,9 @@ def custom_cdist(XA, XB, metric: str | Callable = "euclidean", *, out=None, **kw
     XB : array_like, shape (m_B, n_features) or (n_features,)
         Second sample (synthetic).
     metric : str or Callable
-        Distance metric to use. If a string, it must be one of the registered custom metrics.
-        If a callable, it should have the same signature as scipy.spatial.distance.cdist.
+        Distance metric to use. Registered project metrics such as ``"quantile"``,
+        ``"transformed"``, and ``"ecdf"`` are supported in addition to scipy metric names.
+        If a callable is provided, it is used directly.
     **kwargs
         Additional keyword arguments forwarded to the distance function.
 

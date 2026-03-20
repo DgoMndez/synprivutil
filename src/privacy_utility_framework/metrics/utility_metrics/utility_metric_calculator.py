@@ -92,7 +92,7 @@ class UtilityMetricCalculator(ABC):
         manager = DatasetManager.from_dataframes(original, synthetic, original_name, synthetic_name)
 
         # Configure the transformer and scaler to apply transformations to datasets
-        manager.set_hypertransformer()
+        manager.set_tabletransformer()
 
         # Perform transformation and normalization on both datasets
         manager.transform_datasets()

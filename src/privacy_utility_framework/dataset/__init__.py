@@ -1,5 +1,7 @@
+"""Public dataset APIs exposed by the privacy utility framework."""
+
 from privacy_utility_framework.dataset.dataset import Dataset, DatasetManager
-from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.dataset.transformers import (
     ColumnTransformer,
     ECDFTransformer,

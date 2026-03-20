@@ -4,7 +4,7 @@ Description: Distance utilities for synthetic data evaluation, distance strategi
 
 Author: Domingo Méndez García
 Email: domingo.mendezg@um.es
-Date: 09/03/2026
+Creation date: 09/03/2026
 """
 
 __author__ = "Domingo Méndez García"

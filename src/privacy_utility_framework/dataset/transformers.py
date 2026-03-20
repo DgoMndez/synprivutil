@@ -7,6 +7,7 @@ Description: Column transformers for preprocessing of the data of one single fea
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import Literal, TypeAlias, get_args
 
@@ -27,6 +28,7 @@ VALID_ECDF_SIDES = get_args(ECDFSide)
 
 
 def _get_num_rows(data):
+    """Return the number of rows represented by a supported array-like object."""
     if isinstance(data, (pd.Series | pd.DataFrame | np.ndarray)):
         return len(data)
 
@@ -34,6 +36,7 @@ def _get_num_rows(data):
 
 
 def _ensure_2d(data):
+    """Convert common 1D pandas/numpy inputs into a 2D ndarray for sklearn APIs."""
     if isinstance(data, pd.DataFrame):
         return data.to_numpy()
     if isinstance(data, pd.Series):
@@ -45,6 +48,7 @@ def _ensure_2d(data):
 
 
 def _as_series(data, column):
+    """Extract a single logical column as a pandas Series from supported inputs."""
     if isinstance(data, pd.DataFrame):
         return data[column]
     if isinstance(data, pd.Series):
@@ -59,8 +63,12 @@ def _as_series(data, column):
     return pd.Series(array_data, name=column)
 
 
-class ColumnTransformer:
-    """Minimal single-column transformer contract used by the framework."""
+class ColumnTransformer(ABC):
+    """
+    Base class for single column transformers, intended to transform the values of a single column \
+        of a dataset or revert the transformed values back to the original space. \
+            Column transformers are able to fit, transform and reverse_transform.
+    """
 
     INPUT_SDTYPE = None
     SUPPORTED_SDTYPES: list[str] = []
@@ -73,7 +81,19 @@ class ColumnTransformer:
         self._output_columns: list[str] = []
         self._fitted = False
 
-    def fit(self, data, column):
+    def fit(self, data: pd.DataFrame | pd.Series | any, column: str):
+        """
+        Fits the transformer over the original data in a column of a dataset.
+
+        Args:
+            data (pd.DataFrame | pd.Series | arraylike): The original data to fit the transformer \
+                on. It can be a DataFrame or 1D array.
+            column (str): The name of both the original column to fit the transformer on and \
+                the output column(s) after transformation.
+
+        Returns:
+            self
+        """
         series = _as_series(data, column)
         self.column = column
         self.columns = [column]
@@ -86,29 +106,60 @@ class ColumnTransformer:
         self._fitted = True
         return self
 
-    def transform(self, data):
+    def transform(self, data: pd.DataFrame | pd.Series | any):
+        """
+        Transforms the values of a column of a dataset using the fitted transformer.
+
+        Args:
+            data (pandas.DataFrame | pandas.Series | arraylike): The data to transform. \
+                It can be 1D array or a DataFrame, in which case the column to transform \
+                    is specified by the `column` attribute of the transformer.
+
+        Returns:
+            pandasd.DataFrame: A DataFrame containing the transformed values.
+        """
         assert self._fitted, f"{type(self).__name__} must be fitted before calling transform."
-        input_data = _as_series(data, self.column) if isinstance(data, pd.DataFrame) else data
-        transformed = self._transform(input_data)
+        input_data = _as_series(data, self.column)
+        transformed = self._transform(input_data.copy())
         return self._wrap_forward_output(transformed, index=getattr(data, "index", None))
 
-    def reverse_transform(self, data):
+    def reverse_transform(self, data: pd.DataFrame):
+        """
+        Reverts transformed data back to the original space. Depending on the transformer, \
+            the mapping may or may not be bijective, in which case the reversed values may not \
+                equal the original ones.
+
+        Args:
+            data (pandas.DataFrame): The data to revert back to the original space.
+
+        Returns:
+            A DataFrame containing the reversed values in the original column.
+        """
         assert self._fitted, (
             f"{type(self).__name__} must be fitted before calling reverse_transform."
         )
-        if isinstance(data, pd.DataFrame):
-            input_data = data.loc[:, self.get_output_columns()]
-        else:
-            input_data = data
 
-        reversed_data = self._reverse_transform(input_data)
+        input_data = data.loc[:, self.get_output_columns()]
+
+        reversed_data = self._reverse_transform(input_data.copy())
         return self._wrap_reverse_output(reversed_data, index=getattr(data, "index", None))
 
-    def fit_transform(self, data, column):
+    def fit_transform(self, data: pd.DataFrame | pd.Series, column: str):
+        """
+        Fits the transformer over a specific column of the original data and then transforms it.
+
+        Args:
+            data (pandas.DataFrame | pandas.Series): original data.
+            column (str): the name of the column to fit and transform.
+
+        Returns:
+            A DataFrame containing the transformed values.
+        """
         self.fit(data, column=column)
         return self.transform(data)
 
     def get_output_columns(self):
+        """Return the output column names produced by this transformer."""
         if self._output_columns:
             return list(self._output_columns)
         if self.column is None:
@@ -116,22 +167,25 @@ class ColumnTransformer:
         return self._build_output_columns()
 
     def _build_output_columns(self):
-        keys = list(self.OUTPUT_SDTYPES.keys())
-        if keys == ["value"]:
+        """Build default output column names from ``OUTPUT_SDTYPES`` metadata."""
+        k = len(self.OUTPUT_SDTYPES)
+        if k < 2:
             return [self.column]
 
-        return [f"{self.column}.{key}" for key in keys]
+        return [f"{self.column}.{key}" for key in self.OUTPUT_SDTYPES.keys()]
 
     def _wrap_forward_output(self, transformed, index=None):
+        """Normalize forward-transform outputs to a dataframe with stable column names."""
         if isinstance(transformed, pd.DataFrame):
-            return transformed.copy()
+            return transformed
 
         array_data = _ensure_2d(transformed)
         return pd.DataFrame(array_data, columns=self.get_output_columns(), index=index)
 
     def _wrap_reverse_output(self, reversed_data, index=None):
+        """Normalize reverse-transform outputs and restore the original dtype when possible."""
         if isinstance(reversed_data, pd.DataFrame):
-            result = reversed_data.copy()
+            result = reversed_data
         else:
             array_data = _ensure_2d(reversed_data)
             result = pd.DataFrame(array_data, columns=[self.column], index=index)
@@ -142,6 +196,7 @@ class ColumnTransformer:
         return result
 
     def _restore_original_dtype(self, series: pd.Series) -> pd.Series:
+        """Cast reconstructed values back to the source dtype captured at fit time."""
         if self._original_dtype is None:
             return series
 
@@ -162,13 +217,25 @@ class ColumnTransformer:
 
         return series.astype(self._original_dtype)
 
-    def _fit(self, data):
+    @abstractmethod
+    def _fit(self, data: pd.Series):
+        """
+        Implement the fit logic of the transformer subclass here.
+        """
         raise NotImplementedError
 
-    def _transform(self, data):
+    @abstractmethod
+    def _transform(self, data: pd.Series):
+        """
+        Implement the transform logic of the transformer subclass here.
+        """
         raise NotImplementedError
 
-    def _reverse_transform(self, data):
+    @abstractmethod
+    def _reverse_transform(self, data: pd.DataFrame):
+        """
+        Implement the reverse_transform logic of the transformer subclass here.
+        """
         raise NotImplementedError
 
 
@@ -177,13 +244,13 @@ class IdentityTransformer(ColumnTransformer):
 
     OUTPUT_SDTYPES = {"value": "unknown"}
 
-    def _fit(self, data):
+    def _fit(self, data: pd.Series):
         return None
 
-    def _transform(self, data):
+    def _transform(self, data: pd.Series):
         return _ensure_2d(data)
 
-    def _reverse_transform(self, data):
+    def _reverse_transform(self, data: pd.DataFrame):
         return _ensure_2d(data)
 
 
@@ -198,13 +265,13 @@ class MinMaxScalerTransformer(ColumnTransformer):
         super().__init__()
         self._scaler = MinMaxScaler(feature_range=feature_range, clip=clip)
 
-    def _fit(self, data):
+    def _fit(self, data: pd.Series):
         self._scaler.fit(_ensure_2d(data))
 
-    def _transform(self, data):
+    def _transform(self, data: pd.Series):
         return self._scaler.transform(_ensure_2d(data))
 
-    def _reverse_transform(self, data):
+    def _reverse_transform(self, data: pd.DataFrame):
         return self._scaler.inverse_transform(_ensure_2d(data))
 
 
@@ -232,6 +299,7 @@ class QuantileColTransformer(ColumnTransformer):
         self._qkwargs = q_transformer_kwargs
 
     def from_quantile_transformer(self, qtransformer):
+        """Adopt an already configured sklearn quantile transformer."""
         self._qtransformer = qtransformer
         self._n_quantiles = qtransformer.n_quantiles
         self._output_distribution = qtransformer.output_distribution
@@ -241,6 +309,7 @@ class QuantileColTransformer(ColumnTransformer):
         return self
 
     def _build_transformer(self, data):
+        """Instantiate the sklearn transformer using dataset-aware defaults."""
         n_rows = _get_num_rows(data)
         n_quantiles = self._n_quantiles if self._n_quantiles and self._n_quantiles > 0 else n_rows
         kwargs = {
@@ -254,20 +323,25 @@ class QuantileColTransformer(ColumnTransformer):
 
         self._qtransformer = QuantileTransformer(**kwargs)
 
-    def _fit(self, data):
+    def _fit(self, data: pd.Series):
         data = _ensure_2d(data)
         self._build_transformer(data)
         self._qtransformer.fit(data)
 
-    def _transform(self, data):
+    def _transform(self, data: pd.Series):
         return self._qtransformer.transform(_ensure_2d(data))
 
-    def _reverse_transform(self, data):
+    def _reverse_transform(self, data: pd.DataFrame):
         return self._qtransformer.inverse_transform(_ensure_2d(data))
 
 
+# TODO: Revise this class
 class GaussianNormalizer(QuantileColTransformer):
-    """Approximate Gaussian normalizer based on quantile-to-normal mapping."""
+    """Approximate Gaussian normalizer based on quantile-to-normal mapping.
+
+    The ``gaussian_kde`` distribution uses an empirical score mapping to keep repeated values
+    grouped together more predictably than the default quantile-based normalizer.
+    """
 
     _SUPPORTED_DISTRIBUTIONS = {
         "truncated_gaussian",
@@ -299,7 +373,12 @@ class GaussianNormalizer(QuantileColTransformer):
             **kwargs,
         )
 
+    @property
+    def _uses_empirical_kde(self) -> bool:
+        return self.distribution == "gaussian_kde"
+
     def _build_reference_values(self, values):
+        """Create the sorted support used by the empirical KDE-style mapping."""
         values = np.asarray(values).reshape(-1)
         n_rows = len(values)
 
@@ -321,20 +400,29 @@ class GaussianNormalizer(QuantileColTransformer):
 
         return np.asarray(reference_values, dtype=float).reshape(-1)
 
-    def _fit(self, data):
-        values = np.asarray(data).reshape(-1)
+    def _fit(self, data: pd.Series):
+        """Fit either the sklearn-based normalizer or the empirical mapping."""
+        if not self._uses_empirical_kde:
+            self._sorted_values = None
+            self._sorted_scores = None
+            return super()._fit(data)
+
+        values = data.to_numpy()
         self._sorted_values = self._build_reference_values(values)
         probabilities = (np.arange(len(self._sorted_values), dtype=float) + 0.5) / len(
             self._sorted_values
         )
         self._sorted_scores = norm.ppf(probabilities)
 
-    def _transform(self, data):
-        values = np.asarray(data).reshape(-1)
-        transformed = np.empty(len(values), dtype=float)
-        series = pd.Series(values)
+    def _transform(self, data: pd.Series):
+        """Project values into Gaussian scores."""
+        if not self._uses_empirical_kde:
+            return super()._transform(data)
 
-        for value, index in series.groupby(series, dropna=False).groups.items():
+        values = data.to_numpy()
+        transformed = np.empty(len(values), dtype=float)
+
+        for value, index in data.groupby(data, dropna=False).groups.items():
             group_indices = np.asarray(index, dtype=int)
             left = np.searchsorted(self._sorted_values, value, side="left")
             right = np.searchsorted(self._sorted_values, value, side="right")
@@ -361,8 +449,12 @@ class GaussianNormalizer(QuantileColTransformer):
 
         return transformed.reshape(-1, 1)
 
-    def _reverse_transform(self, data):
-        values = np.asarray(data).reshape(-1)
+    def _reverse_transform(self, data: pd.DataFrame):
+        """Approximate the original values from Gaussian scores."""
+        if not self._uses_empirical_kde:
+            return super()._reverse_transform(data)
+
+        values = data.iloc[:, 0].to_numpy()
         indices = np.searchsorted(self._sorted_scores, values, side="left")
         indices = np.clip(indices, 0, len(self._sorted_values) - 1)
         return self._sorted_values[indices].reshape(-1, 1)
@@ -382,34 +474,38 @@ class OneHotEncoder(ColumnTransformer):
             handle_unknown=handle_unknown,
         )
 
-    def _fit(self, data):
-        values = _ensure_2d(_as_series(data, self.column))
+    def _fit(self, data: pd.Series):
+        values = _ensure_2d(data)
         self._encoder.fit(values)
+        # Use deterministic positional suffixes for output names.
         self._output_columns = [
             f"{self.column}__{idx}" for idx in range(len(self._encoder.categories_[0]))
         ]
 
-    def _transform(self, data):
-        values = _ensure_2d(_as_series(data, self.column))
+    def _transform(self, data: pd.Series):
+        values = _ensure_2d(data)
         return self._encoder.transform(values)
 
-    def _reverse_transform(self, data):
+    def _reverse_transform(self, data: pd.DataFrame):
         return self._encoder.inverse_transform(_ensure_2d(data))
 
 
 class UniformEncoder(ColumnTransformer):
-    """Encode categories into disjoint intervals whose mixture is uniform on [0, 1]."""
+    """
+    Encode categories into disjoint intervals whose mixture is uniform on [0, 1].
+
+    Each category receives an interval proportional to its empirical frequency. Observations are
+    then spread evenly inside that interval, which makes the encoded column continuous while still
+    being reversible.
+    """
 
     INPUT_SDTYPE = "categorical"
     SUPPORTED_SDTYPES = ["categorical"]
     OUTPUT_SDTYPES = {"value": "numerical"}
 
-    def __init__(self, handle_unknown: str = "error"):
+    def __init__(self):
         super().__init__()
-        if handle_unknown not in {"error"}:
-            raise ValueError("handle_unknown must be 'error'.")
 
-        self.handle_unknown = handle_unknown
         self._categories = []
         self._interval_edges = np.array([0.0, 1.0])
 
@@ -417,19 +513,17 @@ class UniformEncoder(ColumnTransformer):
     def _value_mask(series, value):
         return series.isna() if pd.isna(value) else series == value
 
-    def _fit(self, data):
-        series = _as_series(data, self.column)
-        value_counts = series.value_counts(sort=False, dropna=False)
+    def _fit(self, data: pd.Series):
+        value_counts = data.value_counts(sort=False, dropna=False)
         self._categories = list(value_counts.index)
-        probabilities = value_counts.to_numpy(dtype=float) / float(len(series))
+        probabilities = value_counts.to_numpy(dtype=float) / float(len(data))
         self._interval_edges = np.concatenate(([0.0], np.cumsum(probabilities)))
 
-    def _transform(self, data):
-        series = _as_series(data, self.column)
-        transformed = np.full(len(series), np.nan, dtype=float)
+    def _transform(self, data: pd.Series):
+        transformed = np.full(len(data), np.nan, dtype=float)
 
         for idx, category in enumerate(self._categories):
-            mask = self._value_mask(series, category).to_numpy()
+            mask = self._value_mask(data, category).to_numpy()
             count = int(mask.sum())
             if count == 0:
                 continue
@@ -442,11 +536,11 @@ class UniformEncoder(ColumnTransformer):
 
         if np.isnan(transformed).any():
             known_categories = pd.Index(self._categories)
-            unknown_mask = ~series.isin(known_categories)
+            unknown_mask = ~data.isin(known_categories)
             if known_categories.isna().any():
-                unknown_mask &= ~series.isna()
+                unknown_mask &= ~data.isna()
 
-            unknown_categories = list(pd.unique(series[unknown_mask]))
+            unknown_categories = list(pd.unique(data[unknown_mask]))
             raise ValueError(
                 f"UniformEncoder encountered unknown categories in column '{self.column}': "
                 f"{unknown_categories}."
@@ -454,8 +548,8 @@ class UniformEncoder(ColumnTransformer):
 
         return transformed.reshape(-1, 1)
 
-    def _reverse_transform(self, data):
-        values = np.asarray(data).reshape(-1)
+    def _reverse_transform(self, data: pd.DataFrame):
+        values = data.iloc[:, 0].to_numpy()
         clipped = np.clip(values, 0.0, np.nextafter(1.0, 0.0))
         indices = np.searchsorted(self._interval_edges, clipped, side="right") - 1
         indices = np.clip(indices, 0, len(self._categories) - 1)
@@ -478,15 +572,23 @@ class ECDFTransformer(ColumnTransformer):
         self._sorted_values = None
         self._n_samples = None
 
-    def _fit(self, data):
-        values = np.asarray(data if not isinstance(data, pd.Series) else data.to_numpy())
+    @staticmethod
+    def _as_1d_values(data, method_name: str):
+        if isinstance(data, pd.Series):
+            values = data.to_numpy()
+        else:
+            values = np.asarray(data)
 
         if values.ndim != 1:
             raise ValueError(
                 "ECDFTransformer expects 1D data (single column). "
-                f"Got data with shape {values.shape}. "
-                "Pass individual columns via fit(data, column='col_name')."
+                f"Got data with shape {values.shape} in {method_name}."
             )
+
+        return values
+
+    def _fit(self, data: pd.Series):
+        values = self._as_1d_values(data, "_fit")
 
         n_samples = len(values)
         if self._subsample > 0 and self._subsample < n_samples:
@@ -503,28 +605,20 @@ class ECDFTransformer(ColumnTransformer):
 
         self._sorted_values = np.sort(sampled_values)
 
-    def _transform(self, data, side: ECDFSide | None = None):
-        values = np.asarray(data if not isinstance(data, pd.Series) else data.to_numpy())
-
-        if values.ndim != 1:
-            raise ValueError(
-                "ECDFTransformer expects 1D data (single column). "
-                f"Got data with shape {values.shape}."
-            )
-
+    def _transform(self, data: pd.Series, side: ECDFSide | None = None):
+        values = self._as_1d_values(data, "_transform")
         side = self._side if side is None else side
         ranks = np.searchsorted(self._sorted_values, values, side=side)
         transformed = ranks / self._n_samples
         return transformed.reshape(-1, 1)
 
-    def _reverse_transform(self, data, side: ECDFSide | None = None):
+    def _reverse_transform(self, data: pd.DataFrame, side: ECDFSide | None = None):
         if side is not None:
             self._check_side(side)
         else:
             side = self._side
 
-        ecdf_values = np.asarray(data if not isinstance(data, pd.Series) else data.to_numpy())
-        ecdf_values = ecdf_values.reshape(-1)
+        ecdf_values = data.iloc[:, 0].to_numpy()
 
         if side == "right":
             indices = np.floor(ecdf_values * self._n_samples).astype(int) - 1

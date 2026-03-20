@@ -1,3 +1,10 @@
+"""
+Module: src/privacy_utility_framework/utils/distance/strategy_factory.py
+Description: Factory for building _DistanceStrategy_s from canonical names or custom callables.
+
+Creation Date: 20/03/2026
+"""
+
 from __future__ import annotations
 
 from collections.abc import Callable

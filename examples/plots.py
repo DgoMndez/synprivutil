@@ -103,7 +103,7 @@ def pairwise_plot_example():
     manager = DatasetManager.from_dataframes(original_data, synthetic_data)
 
     # Set the transformer and scaler for the datasets
-    manager.set_hypertransformer()
+    manager.set_tabletransformer()
 
     # Transform and normalize the datasets
     manager.transform_datasets()
@@ -124,7 +124,7 @@ def plot_attributes_example():
     manager = DatasetManager.from_dataframes(original_data, synthetic_data)
 
     # Set the transformer and scaler for the datasets
-    manager.set_hypertransformer()
+    manager.set_tabletransformer()
 
     # Transform and normalize the datasets
     manager.transform_datasets()

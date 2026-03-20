@@ -52,7 +52,7 @@ class PrivacyMetricCalculator(ABC):
         synthetic_df,
         original_name=None,
         synthetic_name=None,
-        hypertransformer=None,
+        tabletransformer=None,
     ):
         """
         Alternative constructor to create a PrivacyMetricCalculator directly from pandas DataFrames.
@@ -62,14 +62,14 @@ class PrivacyMetricCalculator(ABC):
             synthetic_df (pd.DataFrame): The synthetic dataset as a DataFrame.
             original_name (str, optional): Name for the original dataset. Defaults to None.
             synthetic_name (str, optional): Name for the synthetic dataset. Defaults to None.
-            hypertransformer (HyperTransformer, optional): An optional HyperTransformer to apply \
+            tabletransformer (TableTransformer, optional): An optional TableTransformer to apply \
                 to both datasets. Defaults to None.
         """
         raise NotImplementedError("Not implemented yet")
 
-    # TODO: from_datasets
+    # TODO: from_datasetmanager
     @classmethod
-    def from_datasets(cls, original_dataset, synthetic_dataset):
+    def from_datasetmanager(cls, dataset_manager: DatasetManager):
         """
         Alternative constructor to create a PrivacyMetricCalculator directly from Dataset objects.
 
@@ -77,7 +77,13 @@ class PrivacyMetricCalculator(ABC):
             original_dataset (Dataset): The original dataset as a Dataset object.
             synthetic_dataset (Dataset): The synthetic dataset as a Dataset object.
         """
-        raise NotImplementedError("Not implemented yet")
+        calculator = cls.__new__(cls)  # Create an uninitialized instance
+        calculator._dm = dataset_manager  # Directly assign the provided DatasetManager
+        assert calculator._dm._set_tabletransformer, (
+            "DatasetManager must have a TableTransformer set before using from_datasetmanager."
+        )
+        calculator._validate_data()  # Validate the datasets
+        return calculator
 
     @staticmethod
     def _build_dataset_manager(
@@ -188,9 +194,9 @@ class PrivacyMetricCalculator(ABC):
         if isinstance(original, Dataset):
             # Respect the transformer already configured on the original Dataset.
             # This preserves custom transformer choices instead of resetting to defaults.
-            self._dm.set_hypertransformer(transformer=original.get_hypertransformer())
+            self._dm.set_tabletransformer(transformer=original.get_tabletransformer())
         else:
-            self._dm.set_hypertransformer()
+            self._dm.set_tabletransformer()
 
         # Perform transformation and normalization on both datasets
         self._dm.transform_datasets()

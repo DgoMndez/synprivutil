@@ -2,8 +2,6 @@
 Module: synprivutil/tests/test_unit_quantile_transformer.py
 Description: Unit test for QuantileRDTransformer.
 
-Author: Domingo Méndez García
-Email: domingo.mendezg@um.es
 Date of creation: 02/03/2026
 """
 

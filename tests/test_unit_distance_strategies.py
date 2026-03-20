@@ -14,7 +14,7 @@ from privacy_utility_framework.utils.distance.strategies import (
 from privacy_utility_framework.utils.distance.strategy_factory import DistanceStrategyFactory
 
 
-class IdentityHyperTransformer:
+class IdentityTableTransformer:
     _fitted = True
 
     def __init__(self, columns):
@@ -83,7 +83,7 @@ def test_strategy_factory_creates_appropiate_strategy():
 
     additional_args = {
         "transformed": {
-            "hypertransformer": IdentityHyperTransformer(columns=original_data.columns)
+            "tabletransformer": IdentityTableTransformer(columns=original_data.columns)
         },
         "quantile": {"original_data": original_data, "qt_factory": RankQuantileMockTransformer},
         "ecdf": {"original_data": original_data, "ecdf_factory": RankECDFMockTransformer},
@@ -157,7 +157,7 @@ def test_transformed_strategy_identity_matches_scipy_cdist_for_dataframe():
         )
 
         strategy = TransformedDistanceStrategy(
-            hypertransformer=IdentityHyperTransformer(columns=XA.columns),
+            tabletransformer=IdentityTableTransformer(columns=XA.columns),
             base_metric="euclidean",
         )
 

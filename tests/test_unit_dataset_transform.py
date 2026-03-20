@@ -6,7 +6,7 @@ import scipy
 from scipy import stats
 
 from privacy_utility_framework.dataset.dataset import Dataset, DatasetManager
-from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.dataset.transformers import ColumnTransformer
 
 DATASETS_PATH = os.path.join(os.path.dirname(__file__), "../datasets/")
@@ -18,13 +18,13 @@ def test_dataset_transform_roundtrip():
     original = pd.read_csv(filepath)
 
     dataset = Dataset(original, name="test_dataset")
-    dataset.fit_hypertransformer()
+    dataset.fit_tabletransformer()
     dataset.transform()
 
     assert dataset.transformed_data is not None
     assert len(dataset.transformed_data) == len(original)
 
-    reversed_data = dataset.hypertransformer.reverse_transform(dataset.transformed_data)
+    reversed_data = dataset.tabletransformer.reverse_transform(dataset.transformed_data)
 
     assert list(reversed_data.columns) == list(original.columns)
     for col in original.columns:
@@ -90,27 +90,27 @@ def is_approximately_standard_normal(r):
     )
 
 
-def test_custom_hypertransformer():
+def test_custom_tabletransformer():
     # Insurance: mixed types, 4 numeric, 3 categorical
     original = pd.read_csv(os.path.join(DATASETS_PATH, "original/insurance.csv"))
     synthetic = pd.read_csv(
         os.path.join(DATASETS_PATH, "synthetic/insurance_datasets/ctgan_sample.csv")
     )
     dm = DatasetManager.from_dataframes(original, synthetic)
-    hypertransformer = TableTransformer()
-    hypertransformer._learn_config(original)
-    hypertransformer.update_transformers_by_sdtype(
+    tabletransformer = TableTransformer()
+    tabletransformer._learn_config(original)
+    tabletransformer.update_transformers_by_sdtype(
         sdtype="numerical",
         transformer_name="GaussianNormalizer",
         transformer_parameters={"distribution": "gaussian_kde"},
     )
-    hypertransformer.update_transformers_by_sdtype(
+    tabletransformer.update_transformers_by_sdtype(
         sdtype="categorical", transformer_name="UniformEncoder"
     )
 
-    assert not hypertransformer._fitted, "HyperTransformer should not be fitted yet."
-    dm.set_hypertransformer(hypertransformer)
-    assert hypertransformer._fitted, "HyperTransformer should be fitted after set."
+    assert not tabletransformer._fitted, "TableTransformer should not be fitted yet."
+    dm.set_tabletransformer(tabletransformer)
+    assert tabletransformer._fitted, "TableTransformer should be fitted after set."
 
     dm.transform_datasets()
 
@@ -142,7 +142,7 @@ def test_custom_hypertransformer():
     cat_cols = original.select_dtypes(include=["object", "category"]).columns
     output_cat_cols = []
     for col in cat_cols:
-        t: ColumnTransformer = hypertransformer.column_transformers[col]
+        t: ColumnTransformer = tabletransformer.column_transformers[col]
         aux = t.get_output_columns()
         output_cat_cols.extend(aux)
 

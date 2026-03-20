@@ -18,7 +18,7 @@ def test_identity_transformed_cdist():
     XB = np.array([[1, 2], [3, 4], [5, 6]])
     XC = np.array([[2, 3], [4, 5], [6, 7]])
 
-    # Create a simple HyperTransformer that does nothing (identity)
+    # Create a simple TableTransformer that does nothing (identity)
     class IdentityTransformer:
         def fit(self, X):
             pass
@@ -28,15 +28,15 @@ def test_identity_transformed_cdist():
 
         _fitted = True
 
-    hypertransformer = IdentityTransformer()
+    tabletransformer = IdentityTransformer()
 
     # Calculate distances using transformed_cdist
-    distances = transformed_cdist(XA, XB, hypertransformer)
+    distances = transformed_cdist(XA, XB, tabletransformer)
 
     # The distance between identical points should be zero
     assert np.all(distances.diagonal() == 0), "Distances between identical points should be zero."
 
-    distances = transformed_cdist(XA, XC, hypertransformer)
+    distances = transformed_cdist(XA, XC, tabletransformer)
     true_distances = cdist(XA, XC, metric="euclidean")
 
     assert np.allclose(distances, true_distances), (
@@ -49,7 +49,7 @@ def test_linear_transformed_cdist():
     XA = np.array([[1, 2], [3, 4], [5, 6]])
     XB = np.array([[2, 4], [6, 8], [10, 12]])
 
-    # Create a simple HyperTransformer that scales by a factor of 2
+    # Create a simple TableTransformer that scales by a factor of 2
     class LinearTransformer:
         def fit(self, X):
             pass
@@ -59,10 +59,10 @@ def test_linear_transformed_cdist():
 
         _fitted = True
 
-    hypertransformer = LinearTransformer()
+    tabletransformer = LinearTransformer()
 
     # Calculate distances using transformed_cdist
-    distances = transformed_cdist(XA, XB, hypertransformer)
+    distances = transformed_cdist(XA, XB, tabletransformer)
 
     # The distance should be scaled by a factor of 2
     true_distances = cdist(XA * 2, XB * 2, metric="euclidean")

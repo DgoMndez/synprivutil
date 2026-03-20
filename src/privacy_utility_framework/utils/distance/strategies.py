@@ -1,3 +1,13 @@
+"""
+Module: src/privacy_utility_framework/utils/distance/strategies.py
+Description: DistanceStrategy class for unified customizable distance computations over \
+    original or synthetic samples of datasets.
+
+Author: Domingo Méndez García
+Email: domingo.mendezg@um.es
+Date: 20/03/2026
+"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -9,15 +19,15 @@ from humanize import naturalsize
 from scipy.spatial import distance
 from sklearn.neighbors import NearestNeighbors
 
-from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileColTransformer
 
 from .distance import (
     _build_ecdf_references,
     _ecdf_bounds_from_references,
     _ecdf_distance_matrix_from_bounds,
-    _get_ecdf_hypertransformer,
-    _get_quantile_hypertransformer,
+    _get_ecdf_tabletransformer,
+    _get_quantile_tabletransformer,
     custom_cdist,
     ecdf_pdist,
     transformed_cdist,
@@ -359,22 +369,34 @@ class ScipyDistanceStrategy(DistanceStrategy):
 
 
 class TransformedDistanceStrategy(DistanceStrategy):
-    """Distance strategy that applies a hypertransformer before distance computation."""
+    """Distance strategy that applies a tabletransformer before distance computation."""
 
     canonical_name = "transformed"
 
     def __init__(
         self,
-        hypertransformer: TableTransformer,
+        tabletransformer: TableTransformer,
         base_metric="euclidean",
         default_args: dict | None = None,
         **kwargs,
     ):
+        """
+        Build a strategy that measures distance after a shared table transformation.
+
+        Args:
+            tabletransformer (TableTransformer): Fitted table transformer applied before distance
+                computation.
+            base_metric (str | Callable, optional): Metric used after transformation.
+            default_args (dict | None, optional): Default keyword arguments reused across distance
+                calls.
+            **kwargs: Extra keyword arguments forwarded when building the underlying base
+                strategy.
+        """
         from .strategy_factory import DistanceStrategyFactory
 
         super().__init__(default_args=default_args)
         self._base_metric = base_metric
-        self._hypertransformer = hypertransformer
+        self._tabletransformer = tabletransformer
         self._base_strategy = DistanceStrategyFactory.create(
             strategy=base_metric, default_args=default_args, **kwargs
         )
@@ -399,19 +421,19 @@ class TransformedDistanceStrategy(DistanceStrategy):
         return transformed_cdist(
             XA,
             XB,
-            hypertransformer=self._hypertransformer,
+            tabletransformer=self._tabletransformer,
             base_metric=base_metric,
             out=out,
             **metric_kwargs,
         )
 
     @property
-    def hypertransformer(self):
-        return self._hypertransformer
+    def tabletransformer(self):
+        return self._tabletransformer
 
-    @hypertransformer.setter
-    def hypertransformer(self, value: TableTransformer):
-        self._hypertransformer = value
+    @tabletransformer.setter
+    def tabletransformer(self, value: TableTransformer):
+        self._tabletransformer = value
 
     @property
     def base_metric(self):
@@ -427,17 +449,18 @@ class TransformedDistanceStrategy(DistanceStrategy):
         )
 
     def nearest_neighbors(self, X_source, X_target=None, k=1, **kwargs):
+        """Find nearest neighbors after transforming both source and target data."""
         # Override to pass base_metric to cdist for efficient knn aggregation
-        X_A = self._hypertransformer.transform(X_source)
+        X_A = self._tabletransformer.transform(X_source)
         X_B = None
         if X_target is not None:
-            X_B = self._hypertransformer.transform(X_target)
+            X_B = self._tabletransformer.transform(X_target)
         return self._base_strategy.nearest_neighbors(X_A, X_B, k=k, **kwargs)
 
 
 class QuantileDistanceStrategy(TransformedDistanceStrategy):
     """
-    Quantile Distance Strategy that applies a quantile-based hypertransformer \
+    Quantile Distance Strategy that applies a quantile-based tabletransformer \
         before distance computation.
     """
 
@@ -467,25 +490,25 @@ class QuantileDistanceStrategy(TransformedDistanceStrategy):
                 dist, cdist and pdist. Defaults to None.
             **kwargs: Additional keyword arguments forwarded to the quantile transformer factory.
         """
-        self._hypertransformer = _get_quantile_hypertransformer(
+        self._tabletransformer = _get_quantile_tabletransformer(
             original_data=original_data,
             qt_factory=qt_factory,
             output_distribution=output_distribution,
             **kwargs,
         )
         super().__init__(
-            hypertransformer=self._hypertransformer,
+            tabletransformer=self._tabletransformer,
             base_metric=base_metric,
             default_args=default_args,
         )
         self._output_distribution = output_distribution
         self._qt_factory = qt_factory
-        # Initialize default hypertransformer on original data with
+        # Initialize default tabletransformer on original data with
         # QuantileTransformer for each numerical feature
 
     @property
-    def hypertransformer(self):
-        return self._hypertransformer
+    def tabletransformer(self):
+        return self._tabletransformer
 
     @property
     def base_metric(self):
@@ -506,7 +529,7 @@ class QuantileDistanceStrategy(TransformedDistanceStrategy):
     @original_data.setter
     def original_data(self, value: pd.DataFrame, qt_factory=None, output_distribution=None):
         """Fits the quantile transformer to the new original data \
-            and updates the hypertransformer accordingly.
+            and updates the tabletransformer accordingly.
 
         Args:
             value (pd.DataFrame): New original data to fit the quantile transformer.
@@ -516,8 +539,8 @@ class QuantileDistanceStrategy(TransformedDistanceStrategy):
                 ('uniform' or 'normal'). Defaults to None.
         """
         self._original_data = value
-        # Update hypertransformer with new original data
-        self._hypertransformer = _get_quantile_hypertransformer(
+        # Update tabletransformer with new original data
+        self._tabletransformer = _get_quantile_tabletransformer(
             original_data=value,
             qt_factory=qt_factory or self._qt_factory,
             output_distribution=output_distribution or self._output_distribution,
@@ -525,7 +548,7 @@ class QuantileDistanceStrategy(TransformedDistanceStrategy):
 
 
 class ECDFDistanceStrategy(TransformedDistanceStrategy):
-    """Distance strategy that applies an ECDF-based hypertransformer before distance computation."""
+    """Distance strategy that applies an ECDF-based tabletransformer before distance computation."""
 
     canonical_name = "ecdf"
 
@@ -537,8 +560,20 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         default_args: dict | None = None,
         **kwargs,
     ):
-        """Build an ECDF-based transformed distance strategy from reference data."""
-        self._hypertransformer = _get_ecdf_hypertransformer(
+        """
+        Build an ECDF-based transformed distance strategy from reference data.
+
+        Args:
+            original_data (pd.DataFrame): Reference data used to fit the ECDF representation.
+            base_metric (str | Callable, optional): Metric used to aggregate per-column ECDF
+                interval gaps.
+            ecdf_factory (class, optional): Factory used to create the per-column ECDF
+                transformers.
+            default_args (dict | None, optional): Default keyword arguments reused across
+                distance calls.
+            **kwargs: Extra keyword arguments forwarded to the ECDF transformer factory.
+        """
+        self._tabletransformer = _get_ecdf_tabletransformer(
             original_data=original_data,
             ecdf_factory=ecdf_factory,
             **kwargs,
@@ -549,7 +584,7 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
             **kwargs,
         )
         super().__init__(
-            hypertransformer=self._hypertransformer,
+            tabletransformer=self._tabletransformer,
             base_metric=base_metric,
             default_args=default_args,
         )
@@ -558,8 +593,8 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         self._ecdf_kwargs = kwargs.copy()
 
     @property
-    def hypertransformer(self):
-        return self._hypertransformer
+    def tabletransformer(self):
+        return self._tabletransformer
 
     @property
     def base_metric(self):
@@ -579,9 +614,9 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
 
     @original_data.setter
     def original_data(self, value: pd.DataFrame, ecdf_factory=None):
-        """Refit the ECDF hypertransformer on new reference data."""
+        """Refit the ECDF tabletransformer on new reference data."""
         self._original_data = value
-        self._hypertransformer = _get_ecdf_hypertransformer(
+        self._tabletransformer = _get_ecdf_tabletransformer(
             original_data=value,
             ecdf_factory=ecdf_factory or self._ecdf_factory,
             **self._ecdf_kwargs,
@@ -593,6 +628,7 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         )
 
     def _cdist(self, XA, XB, base_metric: str | Callable = None, out=None, **kwargs):
+        """Compute pairwise ECDF distances using the fitted reference distribution."""
         metric_kwargs = self.metric_args.copy()
         if kwargs:
             metric_kwargs.update(kwargs)
@@ -610,6 +646,7 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         )
 
     def pdist(self, X, *, out=None, **kwargs):
+        """Compute condensed pairwise ECDF distances within a single dataset."""
         metric_kwargs = self.metric_args.copy()
         if kwargs:
             metric_kwargs.update(kwargs)
@@ -623,6 +660,7 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         )
 
     def nearest_neighbors(self, X_source, X_target=None, k=1, **kwargs):
+        """Find nearest neighbors under the ECDF interval-based distance."""
         metric_kwargs = self.metric_args.copy()
         if kwargs:
             metric_kwargs.update(kwargs)
@@ -690,6 +728,14 @@ class CustomDistanceStrategy(DistanceStrategy):
     canonical_name = "custom"
 
     def __init__(self, metric: str | Callable, default_args: dict | None = None):
+        """
+        Build a strategy from one of the registered project metrics or a callable metric.
+
+        Args:
+            metric (str | Callable): Registered metric name or callable distance function.
+            default_args (dict | None, optional): Default keyword arguments reused across
+                distance calls.
+        """
         self._metric = metric
         self.metric_args = default_args.copy() if default_args else {}
 

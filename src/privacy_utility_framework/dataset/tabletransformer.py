@@ -1,5 +1,5 @@
 """
-Module: src/privacy_utility_framework/dataset/hypertransformer.py
+Module: src/privacy_utility_framework/dataset/tabletransformer.py
 Description: TableTransformer class for dataframe preprocessing consisting of mapping \
     a ColumnTransformer to each feature.
 """
@@ -9,7 +9,13 @@ from __future__ import annotations
 from copy import deepcopy
 
 import pandas as pd
-from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_dtype
+from pandas.api.types import (
+    is_bool_dtype,
+    is_datetime64_any_dtype,
+    is_numeric_dtype,
+    is_object_dtype,
+    is_string_dtype,
+)
 
 from privacy_utility_framework.dataset.transformers import (
     create_transformer,
@@ -18,7 +24,10 @@ from privacy_utility_framework.dataset.transformers import (
 
 
 class TableTransformer:
-    """Small subset of the RDT HyperTransformer API used by this project."""
+    """
+    Transformer for tabular datasets that manages a mapping of :class:`ColumnTransformer`s \
+        to each feature.
+    """
 
     def __init__(self):
         self._column_sdtypes: dict[str, str] = {}
@@ -31,30 +40,41 @@ class TableTransformer:
 
     @staticmethod
     def _coerce_dataframe(data):
+        """Return a defensive dataframe copy and reject unsupported input containers."""
         if isinstance(data, pd.DataFrame):
             return data.copy()
 
         raise TypeError(
-            "HyperTransformer expects pandas DataFrame inputs for fit/transform operations."
+            "TableTransformer expects pandas DataFrame inputs for fit/transform operations."
         )
+
+    SDTYPES = ["numerical", "categorical", "datetime", "other"]
+    _SDTYPE_PREDICATES = (
+        ("categorical", is_bool_dtype),
+        ("numerical", is_numeric_dtype),
+        ("datetime", is_datetime64_any_dtype),
+        ("categorical", lambda series: isinstance(series.dtype, pd.CategoricalDtype)),
+        ("categorical", is_string_dtype),
+        ("categorical", is_object_dtype),
+    )
 
     @classmethod
     def get_supported_sdtypes(cls):
-        return ("numerical", "categorical", "datetime", "other")
+        """
+        List of supported semantic data types: "numerical", "categorical", "datetime", and "other".
+        """
+        return cls.SDTYPES
 
-    @staticmethod
-    def _infer_sdtype(series: pd.Series) -> str:
-        if is_bool_dtype(series):
-            return "categorical"
-        if is_numeric_dtype(series):
-            return "numerical"
-        if is_datetime64_any_dtype(series):
-            return "datetime"
-        if str(series.dtype) in {"object", "category", "string"}:
-            return "categorical"
+    @classmethod
+    def _infer_sdtype(cls, series: pd.Series) -> str:
+        for sdtype, predicate in cls._SDTYPE_PREDICATES:
+            if predicate(series):
+                return sdtype
+
         return "other"
 
     def _learn_config(self, data):
+        """Infers semantic dtypes from the dataframe and resets any fitted state."""
         self._input_columns = list(data.columns)
         self._column_sdtypes = {
             column: self._infer_sdtype(data[column]) for column in self._input_columns
@@ -65,6 +85,7 @@ class TableTransformer:
         return deepcopy(self._column_sdtypes)
 
     def update_sdtypes(self, sdtypes):
+        """Overrides the inferred semantic dtype for one or more columns."""
         for column, sdtype in sdtypes.items():
             self._column_sdtypes[column] = sdtype
             if column not in self._input_columns:
@@ -73,20 +94,46 @@ class TableTransformer:
         self._fitted = False
         return self
 
-    def update_transformers(self, transformers):
+    def update_transformers(self, transformers_dict):
+        """
+        Registers explicit transformer templates for specific columns.
+
+        Args:
+            transformers_dict (dict): Mapping from input column name to transformer instance.
+
+        Returns:
+            TableTransformer: The current instance.
+        """
         self._column_transformer_templates.update(
-            {column: deepcopy(transformer) for column, transformer in transformers.items()}
+            {column: deepcopy(transformer) for column, transformer in transformers_dict.items()}
         )
         self._fitted = False
         return self
 
     def update_transformers_by_sdtype(
         self,
-        sdtype,
+        sdtype: str,
         transformer=None,
         transformer_name=None,
         transformer_parameters=None,
     ):
+        """
+        Sets the default transformer used for all columns with a given semantic dtype.
+
+        Args:
+            sdtype (str): Semantic dtype to target, such as ``"numerical"``.
+            transformer (object, optional): Transformer instance to clone per matching column.
+            transformer_name (str, optional): Registered transformer name used to build the
+                transformer lazily.
+            transformer_parameters (dict, optional): Parameters forwarded when
+                ``transformer_name`` is used.
+
+        Raises:
+            ValueError: If both ``transformer`` and ``transformer_name`` are provided.
+
+        Returns:
+            TableTransformer: The current instance.
+        """
         if transformer is not None and transformer_name is not None:
             raise ValueError("Use either 'transformer' or 'transformer_name', not both.")
 
@@ -100,6 +147,8 @@ class TableTransformer:
         return self
 
     def _get_transformer_for_field(self, column):
+        """
+        Resolves the transformer for a particular column."""
         transformer = self._column_transformer_templates.get(column)
         if transformer is not None:
             return deepcopy(transformer)
@@ -112,6 +161,9 @@ class TableTransformer:
         return get_default_transformer(sdtype)
 
     def fit(self, data):
+        """
+        Fits the transformer over the original data.
+        """
         data = self._coerce_dataframe(data)
         if not self._input_columns:
             self._learn_config(data)
@@ -127,13 +179,17 @@ class TableTransformer:
             transformer = self._get_transformer_for_field(column)
             transformer.fit(data, column=column)
             self.column_transformers[column] = transformer
+            # Preserve output column order so reverse_transform can rebuild the original table.
             self._output_columns.extend(transformer.get_output_columns())
 
         self._fitted = True
         return self
 
     def transform(self, data):
-        assert self._fitted, "HyperTransformer must be fitted before calling transform."
+        """
+        Transforms the tabular data using the fitted column transformers.
+        """
+        assert self._fitted, ":class:`TableTransformer` must be fitted before calling transform."
         data = self._coerce_dataframe(data)
         data = data.loc[:, self._input_columns]
         transformed = [
@@ -145,11 +201,15 @@ class TableTransformer:
         return pd.concat(transformed, axis=1)
 
     def fit_transform(self, data):
+        """Fits transformer over the data and then returns the transformed data."""
         self.fit(data)
         return self.transform(data)
 
     def reverse_transform(self, data):
-        assert self._fitted, "HyperTransformer must be fitted before calling reverse_transform."
+        """Reverts a transformed dataframe back into the original column space."""
+        assert self._fitted, (
+            ":class:`TableTransformer` must be fitted before calling reverse_transform."
+        )
         data = self._coerce_dataframe(data)
 
         missing_columns = [column for column in self._output_columns if column not in data.columns]

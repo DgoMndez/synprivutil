@@ -1,9 +1,11 @@
+"""Dataset wrappers and helpers for keeping tabular transformations consistent."""
+
 from copy import deepcopy
 from functools import lru_cache
 
 import pandas as pd
 
-from privacy_utility_framework.dataset.hypertransformer import TableTransformer
+from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.dataset.transformers import (
     MinMaxScalerTransformer,
     OneHotEncoder,
@@ -13,6 +15,8 @@ from privacy_utility_framework.dataset.transformers import (
 
 
 class Dataset:
+    """Wrap a dataframe together with the transformer used to encode it."""
+
     def __init__(self, data: pd.DataFrame, name="", transformer: TableTransformer = None):
         """
         Initialize a dataset with data and an optional name.
@@ -20,44 +24,48 @@ class Dataset:
         Args:
             data (pd.DataFrame): The dataset to be managed.
             name (str): Optional name for the dataset.
+            transformer (TableTransformer | None): Preconfigured transformer to attach to the
+                dataset. When omitted, ``set_tabletransformer`` can create a default one later.
         """
         self.data = data
         self.name = name
-        self.hypertransformer: TableTransformer = transformer
+        self.tabletransformer: TableTransformer = transformer
         if transformer is None:
-            self.set_hypertransformer(fit=False)
+            self.set_tabletransformer(fit=False)
         self.transformed_data = None
 
-    def get_hypertransformer(self):
+    def get_tabletransformer(self):
         """
         Get the current transformer associated with the dataset.
 
         Returns:
-            HyperTransformer: The current transformer of the dataset.
+            TableTransformer: Transformer used to fit/transform this dataset.
         """
-        return self.hypertransformer
+        return self.tabletransformer
 
-    def set_hypertransformer(self, transformer: TableTransformer = None, fit=True):
+    def set_tabletransformer(self, transformer: TableTransformer = None, fit=True):
         """
         Set the transformer for the dataset, optionally fitting it to the data.
-        
+
         This transformer may transform every feature in the dataset, \
             whether numerical or categorical, based on its configuration.
         
-        If a transformer is provided, it will be used; otherwise, a default HyperTransformer \
-        will be initialized and fitted to the data, that consist of a OneHotEncoder for \
-        categorical columns, a MinMaxScalerTransformer for numeric columns \
-        and the framework default transformer for other data types.
+        If a transformer is provided, it will be used; otherwise, a default \
+        :class:`TableTransformer` will be initialized and fitted to the data. By default, it uses \
+        a OneHotEncoder for categorical columns, a MinMaxScalerTransformer for numeric columns, \
+            and the framework default transformer for other data types.
 
         Args:
-            transformer (HyperTransformer): The transformer to be set for the dataset.
-            fit (bool): Whether to fit the transformer to the dataset's data. Default is True.
+            transformer (TableTransformer | None): Transformer instance to reuse. Passing an
+                existing transformer is useful when multiple datasets must share the same fitted
+                preprocessing pipeline.
+            fit (bool): Whether to fit the resulting transformer on ``self.data`` immediately.
         """
         if transformer is not None:
-            self.hypertransformer = transformer
+            self.tabletransformer = transformer
         else:
-            self.hypertransformer = TableTransformer()
-            self.hypertransformer._learn_config(data=self.data)
+            self.tabletransformer = TableTransformer()
+            self.tabletransformer._learn_config(data=self.data)
             cat_cols = self.data.select_dtypes(include=["object", "category"]).columns
             num_cols = self.data.select_dtypes(include=[float, int]).columns
             sdtypes = {}
@@ -66,53 +74,53 @@ class Dataset:
             transformers = {}
             transformers.update({col: OneHotEncoder() for col in cat_cols})
             transformers.update({col: MinMaxScalerTransformer() for col in num_cols})
-            self.hypertransformer.update_sdtypes(sdtypes)
-            self.hypertransformer.update_transformers(transformers)
+            # Explicit per-column overrides win over generic defaults inferred by TableTransformer.
+            self.tabletransformer.update_sdtypes(sdtypes)
+            self.tabletransformer.update_transformers(transformers)
         if fit:
-            self.fit_hypertransformer()
+            self.fit_tabletransformer()
 
-    def fit_hypertransformer(self):
+    def fit_tabletransformer(self):
         """
-        Fits the already configured hypertransformer for the dataset.
+        Fits the already configured :class:`TableTransformer` for the dataset.
         """
-        # Fit hypertransformer to the original dataset
-        self.hypertransformer.fit(self.data)
+        self.tabletransformer.fit(self.data)
 
     def fit_transform(self):
         """
-        Fits the hypertransformer to the dataset and then applies the transformation.
+        Fits the :class:`TableTransformer` to the dataset and then applies the transformation.
         """
-        self.fit_hypertransformer()
+        self.fit_tabletransformer()
         self.transform()
 
     def transform(self):
         """
-        Applies the transformation using the fitted hypertransformer.
+        Applies the transformation using the fitted :class:`TableTransformer`.
         This includes both categorical encoding and numeric scaling.
-        Raises an error if the hypertransformer is not fitted.
+        Raises an error if the :class:`TableTransformer` is not fitted.
         """
-        if not self.is_hypertransformer_fitted():
-            raise RuntimeError("Hypertransformer must be set or fitted before transformation.")
-        self.transformed_data = self.hypertransformer.transform(self.data)
+        if not self.is_tabletransformer_fitted():
+            raise RuntimeError("Tabletransformer must be set or fitted before transformation.")
+        self.transformed_data = self.tabletransformer.transform(self.data)
 
-    def set_hypertransformer_from(self, other_dataset):
+    def set_tabletransformer_from(self, other_dataset: "Dataset"):
         """
-        Sets the hypertransformer from another dataset to ensure consistent transformation \
-            and scaling.
+        Sets the :class:`TableTransformer` from another dataset to ensure consistent \
+            transformation and scaling.
 
         Args:
-            other_dataset (Dataset): The dataset from which to copy the hypertransformer.
+            other_dataset (Dataset): Dataset whose transformer should be shared.
         """
-        self.set_hypertransformer(transformer=other_dataset.get_hypertransformer(), fit=False)
+        self.set_tabletransformer(transformer=other_dataset.get_tabletransformer(), fit=False)
 
-    def is_hypertransformer_fitted(self):
+    def is_tabletransformer_fitted(self):
         """
-        Check if the hypertransformer is fitted.
+        Check if the :class:`TableTransformer` is fitted.
 
         Returns:
-            bool: True if the transformer is fitted, False otherwise.
+            bool: ``True`` when the transformer can be used for ``transform``.
         """
-        return self.hypertransformer._fitted
+        return self.tabletransformer._fitted
 
     _DEFAULT_TRANSFORMERS = {"numerical": MinMaxScalerTransformer(), "categorical": OneHotEncoder()}
 
@@ -122,7 +130,10 @@ class Dataset:
     @lru_cache(maxsize=_LRU_MAXSIZE)
     def get_default_transformer(cls, sdtype):
         """
-        Return the default transformer for a given sdtype.
+        Return a fresh default transformer for a semantic dtype.
+
+        A deepcopy is returned so callers can mutate the transformer safely without affecting the
+        cached defaults shared by the class.
         """
         val = cls._DEFAULT_TRANSFORMERS.get(sdtype)
         if val is None:
@@ -134,7 +145,7 @@ class Dataset:
     @lru_cache(maxsize=1)
     def get_default_transformers(cls):
         """
-        Return the default transformers for all supported sdtypes.
+        Return the default transformer mapping for all supported semantic dtypes.
         """
         transformers = get_default_transformers()
         transformers.update(cls._DEFAULT_TRANSFORMERS)
@@ -145,7 +156,7 @@ class Dataset:
         Get the original data of the dataset.
 
         Returns:
-            pd.DataFrame: The original data of the dataset.
+            pd.DataFrame: Untransformed source dataframe.
         """
         return self.data
 
@@ -154,25 +165,27 @@ class Dataset:
         Get the transformed data of the dataset.
 
         Returns:
-            pd.DataFrame: The transformed data of the dataset. \
-                Returns None if the data has not been transformed yet.
+            pd.DataFrame | None: Encoded dataframe or ``None`` when ``transform`` has not been
+                called yet.
         """
         return self.transformed_data
 
 
 class DatasetManager:
+    """Coordinate transformation setup for an original/synthetic dataset pair."""
+
     def __init__(self, original: Dataset, synthetic: Dataset):
         """
         Initialize with original and synthetic Dataset objects.
 
         Args:
-            original (Dataset): The original dataset.
-            synthetic (Dataset): The synthetic dataset.
+            original (Dataset): Reference dataset used to fit the shared transformer.
+            synthetic (Dataset): Dataset transformed with the same fitted preprocessing pipeline.
         """
         self.original_dataset = original
         self.synthetic_dataset = synthetic
-        self.hypertransformer = None
-        self._set_hypertransformer = False
+        self.tabletransformer = None
+        self._set_tabletransformer = False
 
     @classmethod
     def from_dataframes(cls, original_df, synthetic_df, original_name=None, synthetic_name=None):
@@ -184,8 +197,9 @@ class DatasetManager:
             synthetic_df (pd.DataFrame): The synthetic dataset as a DataFrame.
             original_name (str, optional): Name for the original dataset. Defaults to None.
             synthetic_name (str, optional): Name for the synthetic dataset. Defaults to None.
+
         Returns:
-            DatasetManager: An instance of DatasetManager initialized with the provided DataFrames.
+            DatasetManager: Manager wrapping the created :class:`Dataset` instances.
         """
         original_name = original_name if original_name is not None else "Original Dataset"
         synthetic_name = synthetic_name if synthetic_name is not None else "Synthetic Dataset"
@@ -201,39 +215,40 @@ class DatasetManager:
         Args:
             original_dataset (Dataset): The original dataset as a Dataset object.
             synthetic_dataset (Dataset): The synthetic dataset as a Dataset object.
+
         Returns:
-            DatasetManager: An instance of DatasetManager initialized with the provided \
-                Dataset objects.
+            DatasetManager: Manager initialized with the provided datasets.
         """
         return cls(original_dataset, synthetic_dataset)
 
-    def set_hypertransformer(self, transformer: TableTransformer = None):
+    def set_tabletransformer(self, transformer: TableTransformer = None):
         """
-        Sets up the hypertransformer on the original dataset and fits it if not already fitted,
-        then applies the same hypertransformer to the synthetic dataset.
+        Sets up the :class:`TableTransformer` on the original dataset and fits it if not already \
+            fitted, then applies the same :class:`TableTransformer` to the synthetic dataset.
+
+        The transformer is always fitted on the original dataset first, then the fitted instance
+        is attached to the synthetic dataset so both datasets are encoded in the same feature
+        space.
         """
-        # Set and fit hypertransformer for the original dataset
+        self.original_dataset.set_tabletransformer(transformer=transformer)
+        if not self.original_dataset.is_tabletransformer_fitted():
+            self.original_dataset.fit_tabletransformer()
 
-        self.original_dataset.set_hypertransformer(transformer=transformer)
-        if not self.original_dataset.is_hypertransformer_fitted():
-            self.original_dataset.fit_hypertransformer()
-
-        # Copy the fitted hypertransformer to the synthetic dataset
-        self.synthetic_dataset.set_hypertransformer_from(self.original_dataset)
-        self._set_hypertransformer = True
+        # Share the fitted transformer so category ordering and scaling remain aligned.
+        self.synthetic_dataset.set_tabletransformer_from(self.original_dataset)
+        self._set_tabletransformer = True
 
     def transform_datasets(self):
         """
         Transforms both datasets using the same transformer.
-        Ensures consistent transformation (including scaling) between both datasets.
+
+        This method assumes ``set_tabletransformer`` has already been called so both datasets use
+        the same preprocessing rules and output schema.
         """
-        # Preserve the currently configured transformer on the original dataset.
-        # If it is not fitted yet, fit it before sharing it with the synthetic dataset.
-        assert self._set_hypertransformer, (
-            "HyperTransformer must be set before transforming datasets."
+        assert self._set_tabletransformer, (
+            "TableTransformer must be set before transforming datasets."
         )
 
-        # Transform both datasets using the same transformer
         self.original_dataset.transform()
         self.synthetic_dataset.transform()
 
@@ -257,7 +272,7 @@ class DatasetManager:
 
     def get_datasets(self):
         """
-        Get both the original and synthetic datasets.
+        Return both managed datasets as a pair.
 
         Returns:
             tuple: A tuple containing the original and synthetic datasets.

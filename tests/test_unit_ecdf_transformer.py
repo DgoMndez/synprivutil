@@ -2,8 +2,6 @@
 Module: synprivutil/tests/test_unit_ecdf_transformer.py
 Description: Comprehensive unit tests for ECDFTransformer.
 
-Author: Domingo Méndez García
-Email: domingo.mendezg@um.es
 Date of creation: 12/03/2026
 """
 
@@ -252,8 +250,8 @@ class TestECDFTransformerErrorHandling:
         transformer = ECDFTransformer(random_state=_get_seed())
         multidim_data = np.array([[1.0, 2.0], [3.0, 4.0]])
 
-        with pytest.raises(ValueError, match="expects 1D data"):
-            transformer._fit(multidim_data)
+        with pytest.raises(ValueError):
+            transformer.fit(multidim_data, column="A")
 
 
 class TestECDFTransformerDuplicateValues:

@@ -1,4 +1,4 @@
-**This is the repository for the thesis work "Design and Implementation of a Platform for Privacy Assessment of Synthetic Data Generation with Generative AI"  done at Communication Systems Group, University of Zurich, supervised by Mr. Weijie Niu, Dr. Alberto Huertas Celdran and Prof. Dr. Burkhard Stiller.**
+**This repository was created for the thesis work "Design and Implementation of a Platform for Privacy Assessment of Synthetic Data Generation with Generative AI"  done at Communication Systems Group, University of Zurich, supervised by Mr. Weijie Niu, Dr. Alberto Huertas Celdran and Prof. Dr. Burkhard Stiller.**
 
 # Synthetic Data Privacy and Utility Framework
 
@@ -6,8 +6,7 @@ This project provides a python library for generating synthetic datasets and eva
 
 ## Prerequisites
 
-The python version 3.10 was used to develop this framework.
-For the following packages, these versions were used:
+The python version 3.10 was used to develop this framework. You can check python dependencies at [pyproject.toml](./pyproject.toml). For the following packages, these versions were used:
 
 - Numpy version: 1.26.4
 - Pandas version: 2.2.2
@@ -19,11 +18,21 @@ For the following packages, these versions were used:
 - Anonymeter version: 1.0.0
 - Scipy version: 1.13.0
 - Dython version: 0.7.8
-- OT version: 0.9.4
+- POT version: 0.9.4
 
 ## Installation
 
-No other installation, besides cloning this repository is needed.
+To install this package, use this command from the project directory:
+
+```bash
+pip install .
+```
+
+If you want to install the package in editable mode for development, use:
+
+```bash
+pip install -e .
+```
 
 ## Content
 
@@ -37,14 +46,34 @@ No other installation, besides cloning this repository is needed.
   - train_test.py: Example of creating train and test datasets.
   - utility.py: Usage-Example for each utility metric.
 - plots: includes different kind of generated plots from the original and synthetic datasets.
-- privacy_utility_framework: includes the framework code.
+- src: includes the framework code.
   - privacy_utility_framework:
-    - dataset: includes the implementation of the Dataset object used across the code.
+    - dataset: includes the implementation of the Dataset object used across the code, the TableTransformer class for preprocessing and ColumnTransformer classes for transforming each feature.
     - metrics: includes all privacy and utility metrics.
     - plots: includes the code for the available plots.
     - synthesizers: includes the implementation of all synthetic data generation models.
-    - utils: utility functions, includes only dynamic_train_test_split at the moment.
+    - utils: utility functions, including dynamic_train_test_split and:
+      - distance: distance metrics and DistanceStrategy class for calculating them between original and synthetic datasets.
 - synthetic_models: includes the saved fitted models.
+- tests: includes python tests for the package.
+
+## Version 0.0.11 - Data Transformation and Distance Strategies for Privacy Metrics
+
+This branch introduces the following relevant additions and improvements:
+
+- Configurable table-level preprocessing via `TableTransformer` and `ColumnTransformer`:
+  - `TableTransformer` is a preprocessor for entire datasets, composed of multiple `ColumnTransformer` instances.
+  - `ColumnTransformer` is intended to transform a individual column in the dataset, and revert values back to the original space. Different transformers are implemented for numerical and categorical data, including scaling, encoding, and quantile/ECDF-based transformations.
+    - `ECDFTransformer` for empirical CDF-based transforms.
+    - `UniformEncoder` for reversible categorical-to-continuous encoding.
+- New distance-strategy framework in `privacy_utility_framework.utils.distance`:
+  - Strategy factory for `scipy`, `transformed`, `quantile`, `ecdf`, and `custom` distances.
+  - Support for callable/custom metrics and strategy-specific defaults.
+  - Batched/aggregated distance computations for large pairwise comparisons.
+- Distance-based privacy metrics (`DCR`, `NNDR`, `AdversarialAccuracy`) now support pluggable distance strategies.
+- Fixed bug that caused memory limit exceeding when calculating pairwise distances for large datasets in distance-based privacy metrics by implementing a batched computation approach.
+- Tests covering new transformers and distance strategies.
+- Updated [examples/privacy_distance.py](./examples/privacy_distance.py) to demonstrate usage of new distance strategies and table/column transformers.
 
 ## Example Usage
 
@@ -52,7 +81,7 @@ Below is an example of how to generate synthetic data using the `GaussianMixture
 
 ```python
 # Load original dataset
-original_data = pd.read_csv('../examples/insurance_datasets/train/insurance.csv')
+original_data = pd.read_csv('./examples/insurance_datasets/train/insurance.csv')
 
 # Create metadata for the dataset
 metadata = SingleTableMetadata()
@@ -75,21 +104,36 @@ print("Synthetic data generated and saved to gmm_sample.csv.")
 Here is an example of how to use the `PrivacyMetricManager` to evaluate privacy metrics between original and synthetic datasets.
 
 ```python
-original_data = pd.read_csv(f"../datasets/original/diabetes.csv")
-synthetic_data = pd.read_csv(f"../datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
+import pandas as pd
+
+from privacy_utility_framework.metrics.privacy_metrics.distance.adversarial_accuracy_class import (
+    AdversarialAccuracyCalculator,
+)
+from privacy_utility_framework.metrics.privacy_metrics.distance.dcr_class import DCRCalculator
+from privacy_utility_framework.metrics.privacy_metrics.distance.nndr_class import NNDRCalculator
+from privacy_utility_framework.metrics.privacy_metrics.privacy_metric_manager import (
+    PrivacyMetricManager,
+)
+
+original_data = pd.read_csv("./datasets/original/diabetes.csv")
+synthetic_data = pd.read_csv("./datasets/synthetic/diabetes_datasets/ctgan_sample.csv")
 
 original_name = "Diabetes"
 synthetic_name = "CTGAN"
 
 p = PrivacyMetricManager()
 
-metric_list = \
-    [
-        DCRCalculator(original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name),
-        NNDRCalculator(original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name),
-        AdversarialAccuracyCalculator(original_data, synthetic_data, original_name=original_name,
-                                      synthetic_name=synthetic_name)
-    ]
+metric_list = [
+    DCRCalculator(
+        original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name
+    ),
+    NNDRCalculator(
+        original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name
+    ),
+    AdversarialAccuracyCalculator(
+        original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name
+    ),
+]
 p.add_metric(metric_list)
 results = p.evaluate_all()
 for key, value in results.items():
@@ -99,9 +143,21 @@ for key, value in results.items():
 Here is another example of how to use the `UtilityMetricManager` to evaluate utility metrics between original and synthetic datasets. This example demonstrates the use of basic statistics and mutual information metrics.
 
 ```python
+import pandas as pd
+
+from privacy_utility_framework.metrics.utility_metrics.statistical.basic_stats import (
+    BasicStatsCalculator,
+)
+from privacy_utility_framework.metrics.utility_metrics.statistical.mutual_information import (
+    MICalculator,
+)
+from privacy_utility_framework.metrics.utility_metrics.utility_metric_manager import (
+    UtilityMetricManager,
+)
+
 # Load original and synthetic datasets
-original_data = pd.read_csv("../datasets/original/insurance.csv")
-synthetic_data = pd.read_csv("../datasets/synthetic/insurance_datasets/ctgan_sample.csv")
+original_data = pd.read_csv("./datasets/original/insurance.csv")
+synthetic_data = pd.read_csv("./datasets/synthetic/insurance_datasets/ctgan_sample.csv")
 
 # Specify dataset names for identification
 original_name = "Insurance"
@@ -112,8 +168,12 @@ p = UtilityMetricManager()
 
 # Define metrics to evaluate
 metric_list = [
-    BasicStatsCalculator(original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name),
-    MICalculator(original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name),
+    BasicStatsCalculator(
+        original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name
+    ),
+    MICalculator(
+        original_data, synthetic_data, original_name=original_name, synthetic_name=synthetic_name
+    ),
 ]
 
 # Add metrics to manager and evaluate
@@ -123,4 +183,5 @@ results = p.evaluate_all()
 # Print results
 for key, value in results.items():
     print(f"{key}: {value}")
+
 ```
