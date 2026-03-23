@@ -12,20 +12,12 @@ from pathlib import Path
 import pandas as pd
 
 from privacy_utility_framework.dataset.dataset import Dataset
-from privacy_utility_framework.metrics.privacy_metrics.distance.adversarial_accuracy_class import (
+from privacy_utility_framework.metrics.privacy_metrics import (
     AdversarialAccuracyCalculator,
     AdversarialAccuracyCalculator_NN,
-)
-from privacy_utility_framework.metrics.privacy_metrics.distance.dcr_class import (
     DCRCalculator,
-)
-from privacy_utility_framework.metrics.privacy_metrics.distance.disco import (
     DisclosureCalculator,
-)
-from privacy_utility_framework.metrics.privacy_metrics.distance.nndr_class import (
     NNDRCalculator,
-)
-from privacy_utility_framework.metrics.privacy_metrics.privacy_metric_manager import (
     PrivacyMetricManager,
 )
 

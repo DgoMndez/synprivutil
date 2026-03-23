@@ -8,4 +8,11 @@ Creation date: 09/03/2026
 """
 
 __author__ = "Domingo Méndez García"
-__all__ = []
+
+from .strategy_factory import DistanceStrategyFactory
+
+__all__ = [
+    "DistanceStrategyFactory",
+    "metrics",
+    "strategies",
+]

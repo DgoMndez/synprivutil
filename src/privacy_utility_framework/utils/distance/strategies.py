@@ -22,7 +22,7 @@ from sklearn.neighbors import NearestNeighbors
 from privacy_utility_framework.dataset.tabletransformer import TableTransformer
 from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileColTransformer
 
-from .distance import (
+from .metrics import (
     _build_ecdf_references,
     _ecdf_bounds_from_references,
     _ecdf_distance_matrix_from_bounds,

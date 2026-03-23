@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 from sdv.metadata import SingleTableMetadata
 
-from privacy_utility_framework.synthesizers.synthesizers import (
+from privacy_utility_framework.synthesizers import (
     CopulaGANModel,
     CTGANModel,
     GaussianCopulaModel,

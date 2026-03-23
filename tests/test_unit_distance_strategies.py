@@ -3,7 +3,8 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 
 from privacy_utility_framework.dataset.transformers import ECDFTransformer, QuantileColTransformer
-from privacy_utility_framework.utils.distance.distance import ecdf_cdist, quantile_cdist
+from privacy_utility_framework.utils.distance import DistanceStrategyFactory
+from privacy_utility_framework.utils.distance.metrics import ecdf_cdist, quantile_cdist
 from privacy_utility_framework.utils.distance.strategies import (
     CustomDistanceStrategy,
     ECDFDistanceStrategy,
@@ -11,7 +12,6 @@ from privacy_utility_framework.utils.distance.strategies import (
     ScipyDistanceStrategy,
     TransformedDistanceStrategy,
 )
-from privacy_utility_framework.utils.distance.strategy_factory import DistanceStrategyFactory
 
 
 class IdentityTableTransformer:

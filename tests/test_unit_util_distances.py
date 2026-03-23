@@ -5,7 +5,7 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 
 from privacy_utility_framework.dataset.transformers import QuantileColTransformer
-from privacy_utility_framework.utils.distance.distance import (
+from privacy_utility_framework.utils.distance.metrics import (
     ecdf_cdist,
     quantile_cdist,
     transformed_cdist,
