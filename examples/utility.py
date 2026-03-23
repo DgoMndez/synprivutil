@@ -3,26 +3,16 @@ from pathlib import Path
 
 import pandas as pd
 
-from privacy_utility_framework.metrics.utility_metrics.statistical.basic_stats import (
+from privacy_utility_framework.metrics.utility.statistical import (
     BasicStatsCalculator,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.correlation import (
     CorrelationCalculator,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.js_similarity import (
     JSCalculator,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.ks_test import (
     KSCalculator,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.mutual_information import (
     MICalculator,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.wasserstein import (
     WassersteinCalculator,
     WassersteinMethod,
 )
-from privacy_utility_framework.metrics.utility_metrics.utility_metric_manager import (
+from privacy_utility_framework.metrics.utility.utility_metric_manager import (
     UtilityMetricManager,
 )
 

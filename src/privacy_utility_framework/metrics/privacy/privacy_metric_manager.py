@@ -1,4 +1,4 @@
-from privacy_utility_framework.metrics.privacy_metrics import (
+from privacy_utility_framework.metrics.privacy.privacy_metric_calculator import (
     PrivacyMetricCalculator,
 )
 

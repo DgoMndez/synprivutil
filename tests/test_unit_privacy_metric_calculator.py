@@ -2,8 +2,8 @@ from unittest.mock import Mock, patch
 
 import pandas as pd
 
-from privacy_utility_framework.metrics.privacy_metrics import PrivacyMetricCalculator
-from privacy_utility_framework.metrics.privacy_metrics.distance import (
+from privacy_utility_framework.metrics.privacy import PrivacyMetricCalculator
+from privacy_utility_framework.metrics.privacy.distance import (
     DistancePrivacyMetricCalculator,
 )
 
@@ -67,7 +67,7 @@ def test_distance_calculator_keeps_preprocessing_out_of_strategy_kwargs():
     synthetic = pd.DataFrame({"x": [1.5, 2.5, 3.5]})
 
     with patch(
-        "privacy_utility_framework.metrics.privacy_metrics.distance.distance_privacy_metric_calculator.DistanceStrategyFactory.create"
+        "privacy_utility_framework.metrics.privacy.distance.distance_privacy_metric_calculator.DistanceStrategyFactory.create"
     ) as create:
         create.return_value = Mock()
 

@@ -1,20 +1,21 @@
 import pandas as pd
-from anonymeter.evaluators import LinkabilityEvaluator
+from anonymeter.evaluators import InferenceEvaluator
 
 from privacy_utility_framework.dataset.tabletransformer import TableTransformer
-from privacy_utility_framework.metrics.privacy_metrics import (
+from privacy_utility_framework.metrics.privacy.privacy_metric_calculator import (
     PrivacyMetricCalculator,
 )
 
 
-class LinkabilityCalculator(PrivacyMetricCalculator):
+class InferenceCalculator(PrivacyMetricCalculator):
     def __init__(
         self,
         original: pd.DataFrame,
         synthetic: pd.DataFrame,
-        aux_cols: tuple[list[str], list[str]],
-        n_attacks: int | None = 500,
-        n_neighbors: int = 1,
+        aux_cols: list[str],
+        secret: str,
+        regression: bool | None = None,
+        n_attacks: int = 500,
         control: pd.DataFrame | None = None,
         original_name: str = None,
         synthetic_name: str = None,
@@ -22,17 +23,20 @@ class LinkabilityCalculator(PrivacyMetricCalculator):
         preprocessor: TableTransformer | None = None,
     ):
         """
-        Initializes the LinkabilityCalculator instance for evaluating linkability risks.
+        Initializes the InferenceCalculator instance for evaluating inference risk.
 
         Parameters:
         - original (pd.DataFrame): The original dataset.
         - synthetic (pd.DataFrame): The synthetic dataset generated from the original data.
-        - aux_cols (Tuple[List[str], List[str]]): A tuple containing two lists of \
-            auxiliary columns used for linkability assessment.
-        - n_attacks (Optional[int]): The number of attacks to perform. Defaults to 500.
-        - n_neighbors (int): The number of neighbors to consider for linkability. Defaults to 1.
+        - aux_cols (list[str]): Features of the records that are given to the attacker \
+            as auxiliary information.
+        - secret (str): The name of the secret column to be inferred.
+        - regression (Optional[bool]): Specifies whether the target of the inference attack is \
+            quantitative (regression = True) or categorical (regression = False). If None (default),
+            the code will try to guess this by checking the type of the variable
+        - n_attacks (int): The number of inference attacks to perform.
         - control (Optional[pd.DataFrame]): An optional control dataset for evaluating \
-            linkability risk.
+            inference risk.
         - original_name (str, optional): An optional name for the original dataset.
         - synthetic_name (str, optional): An optional name for the synthetic dataset.
         - preprocess (bool, optional): Whether to preprocess both datasets before evaluation.
@@ -40,7 +44,7 @@ class LinkabilityCalculator(PrivacyMetricCalculator):
           preprocessing is enabled.
 
         Raises:
-        ValueError: If the aux_cols parameter is not provided.
+        ValueError: If aux_cols or secret parameters are not provided.
         """
         super().__init__(
             original,
@@ -52,29 +56,34 @@ class LinkabilityCalculator(PrivacyMetricCalculator):
             preprocessor=preprocessor,
         )
         if aux_cols is None:
-            raise ValueError("Parameter 'aux_cols' is required in LinkabilityCalculator.")
+            raise ValueError("Parameter 'aux_cols' is required in InferenceCalculator.")
+        if secret is None:
+            raise ValueError("Parameter 'secret' is required in InferenceCalculator.")
         self.aux_cols = aux_cols
-        self.n_attacks = min(n_attacks, len(control))
-        self.n_neighbors = n_neighbors
+        self.secret = secret
+        self.regression = regression
+        self.n_attacks = n_attacks
         self.control = control
 
     def evaluate(self):
         """
-        Evaluates the linkability risk between the original and synthetic datasets.
+        Evaluate the inference risk using the original and synthetic datasets.
 
         Returns:
-        The risk assessment result from the LinkabilityEvaluator.
+        The risk assessment result from the InferenceEvaluator.
         """
         # Retrieve the data from the original and synthetic Dataset objects \
         # (no need for normalization or transformation)
         original = self.original.data
         synthetic = self.synthetic.data
-        evaluator = LinkabilityEvaluator(
+        evaluator = InferenceEvaluator(
             ori=original,
             syn=synthetic,
             aux_cols=self.aux_cols,
+            secret=self.secret,
+            regression=self.regression,
             n_attacks=self.n_attacks,
-            n_neighbors=self.n_neighbors,
             control=self.control,
         )
+        # Perform the evaluation and return the calculated risk
         return evaluator.evaluate().risk()

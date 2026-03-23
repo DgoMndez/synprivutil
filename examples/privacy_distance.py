@@ -12,13 +12,13 @@ from pathlib import Path
 import pandas as pd
 
 from privacy_utility_framework.dataset.dataset import Dataset
-from privacy_utility_framework.metrics.privacy_metrics import (
+from privacy_utility_framework.metrics.privacy import PrivacyMetricManager
+from privacy_utility_framework.metrics.privacy.distance import (
     AdversarialAccuracyCalculator,
     AdversarialAccuracyCalculator_NN,
     DCRCalculator,
     DisclosureCalculator,
     NNDRCalculator,
-    PrivacyMetricManager,
 )
 
 RANDOM_STATE = 7428

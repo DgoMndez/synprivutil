@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import jensenshannon
 
-from privacy_utility_framework.metrics.utility_metrics import (
+from privacy_utility_framework.metrics.utility import (
     UtilityMetricCalculator,
 )
 

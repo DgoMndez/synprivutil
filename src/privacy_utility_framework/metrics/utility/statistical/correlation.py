@@ -3,7 +3,7 @@ from enum import Enum
 import numpy as np
 import pandas as pd
 
-from privacy_utility_framework.metrics.utility_metrics import (
+from privacy_utility_framework.metrics.utility import (
     UtilityMetricCalculator,
 )
 

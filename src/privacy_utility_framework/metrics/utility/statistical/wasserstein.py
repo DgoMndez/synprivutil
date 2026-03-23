@@ -5,7 +5,7 @@ import ot
 import pandas as pd
 from scipy.stats import wasserstein_distance_nd
 
-from privacy_utility_framework.metrics.utility_metrics import (
+from privacy_utility_framework.metrics.utility import (
     UtilityMetricCalculator,
 )
 

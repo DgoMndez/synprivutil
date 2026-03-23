@@ -1,6 +1,6 @@
-**This repository was created for the thesis work "Design and Implementation of a Platform for Privacy Assessment of Synthetic Data Generation with Generative AI"  done at Communication Systems Group, University of Zurich, supervised by Mr. Weijie Niu, Dr. Alberto Huertas Celdran and Prof. Dr. Burkhard Stiller.**
-
 # Synthetic Data Privacy and Utility Framework
+
+**This repository was created for the thesis work "Design and Implementation of a Platform for Privacy Assessment of Synthetic Data Generation with Generative AI"  done at Communication Systems Group, University of Zurich, supervised by Mr. Weijie Niu, Dr. Alberto Huertas Celdran and Prof. Dr. Burkhard Stiller.**
 
 This project provides a python library for generating synthetic datasets and evaluating their privacy and utility. It includes tools for creating synthetic data, performing various privacy and utility analyses, and visualizing results through plots. The framework is designed to help researchers and developers assess the balance between data utility and privacy in synthetic datasets.
 
@@ -12,9 +12,8 @@ The python version 3.10 was used to develop this framework. You can check python
 - Pandas version: 2.2.2
 - SDV version: 1.15.0
 - Scikit-learn version: 1.5.1
-- Seaborn version: 0.12.2
+- Seaborn version: 0.13.2
 - Matplotlib version: 3.9.2
-- RDT version: 1.12.3
 - Anonymeter version: 1.0.0
 - Scipy version: 1.13.0
 - Dython version: 0.7.8
@@ -22,7 +21,7 @@ The python version 3.10 was used to develop this framework. You can check python
 
 ## Installation
 
-To install this package, use this command from the project directory:
+To install this python package, we recommend using a virtual environment, such as `venv` or `conda`, to avoid conflicts with other packages. Once you have set up your virtual environment, you can install the package using pip by running this command from the project directory:
 
 ```bash
 pip install .
@@ -31,31 +30,31 @@ pip install .
 If you want to install the package in editable mode for development, use:
 
 ```bash
-pip install -e .
+pip install -e .[dev]
 ```
 
 ## Content
 
-- datasets: in this folder, the original and synthetic datasets can be found. The following original datasets were used: [Diabetes](https://www.kaggle.com/datasets/akshaydattatraykhare/diabetes-dataset), [Cardio](https://www.kaggle.com/datasets/sulianova/cardiovascular-disease-dataset) and [Insurance](https://www.kaggle.com/datasets/mirichoi0218/insurance).
-- examples:
-  - dataset_transform_normalization.py: Example of how to transform and normalize a dataset.
-  - plots.py: Some plot functions that show how plots can be generated.
-  - privacy_attacks.py: Usage-Example for each attacker-based privacy metric.
-  - privacy_distance.py: Usage-Example for each distance-based privacy metric.
-  - synthetic_data_generation.py: Example on how to generate synthetic data.
-  - train_test.py: Example of creating train and test datasets.
-  - utility.py: Usage-Example for each utility metric.
-- plots: includes different kind of generated plots from the original and synthetic datasets.
-- src: includes the framework code.
-  - privacy_utility_framework:
-    - dataset: includes the implementation of the Dataset object used across the code, the TableTransformer class for preprocessing and ColumnTransformer classes for transforming each feature.
-    - metrics: includes all privacy and utility metrics.
-    - plots: includes the code for the available plots.
-    - synthesizers: includes the implementation of all synthetic data generation models.
-    - utils: utility functions, including dynamic_train_test_split and:
-      - distance: distance metrics and DistanceStrategy class for calculating them between original and synthetic datasets.
-- synthetic_models: includes the saved fitted models.
-- tests: includes python tests for the package.
+- `datasets`: in this folder, the original and synthetic datasets can be found. The following original datasets were used: [Diabetes](https://www.kaggle.com/datasets/akshaydattatraykhare/diabetes-dataset), [Cardio](https://www.kaggle.com/datasets/sulianova/cardiovascular-disease-dataset) and [Insurance](https://www.kaggle.com/datasets/mirichoi0218/insurance).
+- `examples`:
+  - `dataset_transform_normalization.py`: Example of how to transform and normalize a dataset.
+  - `plots.py`: Some plot functions that show how plots can be generated.
+  - `privacy_attacks.py`: Usage-Example for each attacker-based privacy metric.
+  - `privacy_distance.py`: Usage-Example for each distance-based privacy metric.
+  - `synthetic_data_generation.py`: Example on how to generate synthetic data.
+  - `train_test.py`: Example of creating train and test datasets.
+  - `utility.py`: Usage-Example for each utility metric.
+- `plots`: includes different kind of generated plots from the original and synthetic datasets.
+- `src`: includes the framework code.
+  - `privacy_utility_framework`:
+    - `dataset`: includes the implementation of the `Dataset` object used across the code, the `TableTransformer` class for preprocessing and `ColumnTransformer` classes for transforming each feature.
+    - `metrics`: includes all privacy and utility metrics.
+    - `plots`: includes the code for the available plots.
+    - `synthesizers`: includes the implementation of all synthetic data generation models.
+    - `utils`: utility functions, including dynamic_train_test_split and:
+      - `distance`: distance metrics and `DistanceStrategy` classes for calculating them between original and synthetic datasets.
+- `synthetic_models`: includes the saved fitted models.
+- `tests`: includes python tests for the package.
 
 ## Version 0.0.11 - Data Transformation and Distance Strategies for Privacy Metrics
 
@@ -106,12 +105,12 @@ Here is an example of how to use the `PrivacyMetricManager` to evaluate privacy 
 ```python
 import pandas as pd
 
-from privacy_utility_framework.metrics.privacy_metrics.distance.adversarial_accuracy_class import (
+from privacy_utility_framework.metrics.privacy.distance import (
     AdversarialAccuracyCalculator,
+    DCRCalculator,
+    NNDRCalculator
 )
-from privacy_utility_framework.metrics.privacy_metrics.distance.dcr_class import DCRCalculator
-from privacy_utility_framework.metrics.privacy_metrics.distance.nndr_class import NNDRCalculator
-from privacy_utility_framework.metrics.privacy_metrics.privacy_metric_manager import (
+from privacy_utility_framework.metrics.privacy.privacy_metric_manager import (
     PrivacyMetricManager,
 )
 
@@ -157,13 +156,11 @@ Here is another example of how to use the `UtilityMetricManager` to evaluate uti
 ```python
 import pandas as pd
 
-from privacy_utility_framework.metrics.utility_metrics.statistical.basic_stats import (
+from privacy_utility_framework.metrics.utility.statistical import (
     BasicStatsCalculator,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.mutual_information import (
     MICalculator,
 )
-from privacy_utility_framework.metrics.utility_metrics.utility_metric_manager import (
+from privacy_utility_framework.metrics.utility.utility_metric_manager import (
     UtilityMetricManager,
 )
 

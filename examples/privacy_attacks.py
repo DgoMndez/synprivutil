@@ -10,13 +10,9 @@ from pathlib import Path
 import pandas as pd
 import tqdm
 
-from privacy_utility_framework.metrics.privacy_metrics.attacks.inference_class import (
+from privacy_utility_framework.metrics.privacy.attacks import (
     InferenceCalculator,
-)
-from privacy_utility_framework.metrics.privacy_metrics.attacks.linkability_class import (
     LinkabilityCalculator,
-)
-from privacy_utility_framework.metrics.privacy_metrics.attacks.singlingout_class import (
     SinglingOutCalculator,
 )
 

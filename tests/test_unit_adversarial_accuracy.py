@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from privacy_utility_framework.metrics.privacy_metrics.distance import (
+from privacy_utility_framework.metrics.privacy.distance import (
     AdversarialAccuracyCalculator,
 )
 from privacy_utility_framework.utils.distance.strategies import DistanceStrategy

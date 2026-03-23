@@ -12,13 +12,9 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 from privacy_utility_framework.dataset.dataset import DatasetManager
-from privacy_utility_framework.metrics.utility_metrics.statistical.basic_stats import (
+from privacy_utility_framework.metrics.utility.statistical import (
     BasicStatsCalculator,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.ks_test import (
     KSCalculator,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.wasserstein import (
     WassersteinCalculator,
     WassersteinMethod,
 )

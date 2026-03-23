@@ -2,7 +2,7 @@ import pandas as pd
 from anonymeter.evaluators import SinglingOutEvaluator
 
 from privacy_utility_framework.dataset.tabletransformer import TableTransformer
-from privacy_utility_framework.metrics.privacy_metrics import (
+from privacy_utility_framework.metrics.privacy.privacy_metric_calculator import (
     PrivacyMetricCalculator,
 )
 

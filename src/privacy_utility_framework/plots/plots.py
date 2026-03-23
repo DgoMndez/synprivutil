@@ -2,11 +2,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-from privacy_utility_framework.metrics.utility_metrics.statistical.correlation import (
+from privacy_utility_framework.metrics.utility.statistical import (
     CorrelationCalculator,
     CorrelationMethod,
-)
-from privacy_utility_framework.metrics.utility_metrics.statistical.mutual_information import (
     MICalculator,
 )
 
