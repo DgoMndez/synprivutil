@@ -276,7 +276,52 @@ class MinMaxScalerTransformer(ColumnTransformer):
 
 
 class QuantileColTransformer(ColumnTransformer):
-    """Single-column wrapper around sklearn's QuantileTransformer."""
+    """Single-column wrapper around sklearn's QuantileTransformer.
+
+    Transforms numerical data to a uniform or normal distribution using quantile mapping.
+
+    **Mathematical Formulation:**
+
+    The QuantileTransformer maps values from the original distribution to a target distribution
+    (uniform or normal) using quantile-to-quantile mapping.
+
+    For a dataset X = {x₁, x₂, ..., xₙ} with sorted values X_sorted:
+
+    **Forward Transform (to uniform [0, 1]):**
+        u = F̂_X(x) = (rank(x)) / (n_quantiles)
+
+    where:
+        - F̂_X(x) is the empirical cumulative distribution function (quantile rank).
+        - rank(x) is the position of x in the quantiles (interpolated, refer to `sklearn`).
+        - n_quantiles controls the resolution of the quantile grid (default: n_samples).
+
+    **Forward Transform (to normal distribution):**
+        y = Φ⁻¹(u)
+
+    where Φ⁻¹ is the inverse of the standard normal CDF (probit function).
+
+    **Inverse Transform:**
+        x = F̂_X⁻¹(u)
+
+    where F̂_X⁻¹ is the inverse function (quantile function) that maps [0,1] back to original space.
+
+    **Parameters:**
+
+    - `n_quantiles` (int): Number of quantiles to estimate. Default 0 (use n_samples).
+      - If set, uses a grid of n_quantiles points spanning the data range
+      - Higher values provide finer resolution but require more computation
+    - `output_distribution` (str): Target distribution ('uniform' or 'normal')
+    - `subsample` (int): If > 0 and < n_samples, subsample this many points for fitting
+
+    **Example:**
+
+    For input data [1, 2, 3, 4, 5] with output_distribution='uniform':
+        - Output interpolated quantiles: [0, 0.25, 0.5, 0.75, 1.0]
+
+    For output_distribution='normal' (Gaussian):
+        - Applies Φ⁻¹ to quantile ranks, mapping to standard normal ~N(0, 1)
+        - Values at [0.025, 0.5, 0.975] quantiles map to ~[-1.96, 0, 1.96]
+    """
 
     INPUT_SDTYPE = "numerical"
     SUPPORTED_SDTYPES = ["numerical"]
@@ -324,14 +369,50 @@ class QuantileColTransformer(ColumnTransformer):
         self._qtransformer = QuantileTransformer(**kwargs)
 
     def _fit(self, data: pd.Series):
+        """Fit the quantile transformer to the data.
+
+        Estimates the quantiles q₀, q₁, ..., q_k from the input data where k = n_quantiles.
+        These quantiles serve as reference points for the mapping:
+            x → u = (quantile_rank) / (n_quantiles)
+
+        Args:
+            data: 1D Series of numerical values to fit
+        """
         data = _ensure_2d(data)
         self._build_transformer(data)
         self._qtransformer.fit(data)
 
     def _transform(self, data: pd.Series):
+        """Transform data to target distribution using quantile mapping.
+
+        Maps each value x to its quantile position u ∈ [0, 1]:
+            u = F̂(x) = interpolate_rank(x, quantiles) / n_quantiles
+
+        Then transforms to target distribution (uniform or normal):
+            - uniform: return u directly
+            - normal: return Φ⁻¹(u)
+
+        Args:
+            data: 1D Series of values to transform
+
+        Returns:
+            2D array of transformed values in [0, 1] (uniform) or ℝ (normal)
+        """
         return self._qtransformer.transform(_ensure_2d(data))
 
     def _reverse_transform(self, data: pd.DataFrame):
+        """Inverse transform from target distribution back to original scale.
+
+        Mathematical operation:
+            1. If input was normal: u = Φ(x) (CDF of normal)
+            2. Map quantile position to original value: x̂ = F̂⁻¹(u)
+
+        Args:
+            data: 2D array of transformed values
+
+        Returns:
+            2D array of recovered values in original data space
+        """
         return self._qtransformer.inverse_transform(_ensure_2d(data))
 
 
@@ -558,7 +639,75 @@ class UniformEncoder(ColumnTransformer):
 
 
 class ECDFTransformer(ColumnTransformer):
-    """Single-column empirical CDF transformer."""
+    """Single-column Empirical Cumulative Distribution Function (ECDF) transformer.
+
+    This transformer maps numeric features to their ECDF values, transforming data into a \
+        uniform distribution on [0, 1]. For each value x_j in the fitted column:
+    
+    y_j = F^(x_j) = r_j / N,
+    
+    where r_j is the rank of x_j in the fitted data, and N is the total number of samples.
+
+    Attributes:
+        _sorted_values (numpy array): Sorted values from the fitted column.
+        _n_samples (int): Number of samples used during fitting.
+    
+    Maps numerical values to their empirical cumulative distribution function (ECDF) values.
+    Provides efficient rank-based transformation using searchsorted algorithm.
+    
+    **Mathematical Formulation:**
+    
+    **Empirical CDF (Rank-based):**
+    
+    For a dataset X = {x₁, x₂, ..., xₙ} with sorted values X_sorted = {x₍₁₎, x₍₂₎, ..., x₍ₙ₎}:
+    
+    **Forward Transform (Empirical CDF):**
+        F̂(x) = rank(x) / n
+    
+    where:
+        - F̂(x) is the empirical CDF value (proportion of data ≤ x)
+        - rank(x) = |{xᵢ : xᵢ ≤ x}| (count of values ≤ x)
+        - n is the number of training samples
+    
+    The `side` parameter controls the exact ranking behavior at ties:
+    
+    **side = "right" (default):**
+        - Uses right-side ranking: rank(x) includes values equal to x
+        - Formula: F̂ᵣ(x) = |{xᵢ : xᵢ ≤ x}| / n
+        - Interpretation: proportion of data ≤ x
+    
+    **side = "left":**
+        - Uses left-side ranking: rank(x) excludes values equal to x initially
+        - Formula: F̂ₗ(x) = |{xᵢ : xᵢ < x}| / n
+        - Interpretation: proportion of data < x
+    
+    **Inverse Transform (Quantile Function):**
+    
+    Given ECDF value u ∈ [0, 1], recover an approximate original value:
+    
+    For side = "right":
+        idx = ⌊u × n⌋ - 1
+        x̂ = X_sorted[clip(idx, 0, n-1)]
+    
+    For side = "left":
+        idx = ⌊u × n⌋
+        x̂ = X_sorted[clip(idx, 0, n-1)]
+    
+    where clip(idx, 0, n-1) ensures indices stay within bounds.
+    
+    **Key Properties:**
+    
+    - **Range**: ECDF values are in (0, 1] for side="right" or [0, 1) for side="left"
+    - **Monotonicity**: F̂ is non-decreasing, monotone increasing at jump points
+    - **Bounds**: ECDF approaches 0 at -∞, approaches 1 at +∞
+    
+    **Quick Use Cases:**
+    
+    - Privacy-sensitive applications: ECDF is rank-based, less affected by outliers.
+    - Categorical/ordinal data emulation: ECDF maps to discrete-like quantile levels.
+    - Distance calculations: ECDF distances measure distribution alignment by ranks.
+    - Robustness: Resistant to scaling and tail behavior changes.
+    """
 
     INPUT_SDTYPE = "numerical"
     SUPPORTED_SDTYPES = ["numerical"]
@@ -588,6 +737,21 @@ class ECDFTransformer(ColumnTransformer):
         return values
 
     def _fit(self, data: pd.Series):
+        """Fit ECDF by sorting and storing reference data points.
+
+        Computes and stores:
+            - _sorted_values: sorted unique or non-unique values from training data
+            - _n_samples: number of reference points (after optional subsampling)
+
+        The ECDF is implicitly defined by these sorted values. For any test value x:
+
+            ECDF(x) = rank(x) / n_samples,
+
+        where rank(x) is the count of reference values ≤ x (or < x for side='left').
+
+        Args:
+            data: 1D Series of training values
+        """
         values = self._as_1d_values(data, "_fit")
 
         n_samples = len(values)
@@ -606,6 +770,26 @@ class ECDFTransformer(ColumnTransformer):
         self._sorted_values = np.sort(sampled_values)
 
     def _transform(self, data: pd.Series, side: ECDFSide | None = None):
+        """
+        Transform values to their ECDF estimates.
+
+        For each input value x, computes:
+            rank = np.searchsorted(X_sorted, x, side=side)
+            ECDF(x) = rank / n_samples ∈ (0, 1]
+
+        **Searchsorted behavior:**
+
+        - side='right' (default): rank = count(x_i ≤ x)
+
+        - side='left': rank = count(x_i < x) / n
+
+        Args:
+            data: 1D Series of test values
+            side: Optional override of self.side (default: use initialized value)
+
+        Returns:
+            2D array of ECDF values in (0,1) or [0,1]
+        """
         values = self._as_1d_values(data, "_transform")
         side = self._side if side is None else side
         ranks = np.searchsorted(self._sorted_values, values, side=side)
@@ -613,6 +797,31 @@ class ECDFTransformer(ColumnTransformer):
         return transformed.reshape(-1, 1)
 
     def _reverse_transform(self, data: pd.DataFrame, side: ECDFSide | None = None):
+        """
+        Recover approximate original values from ECDF estimates.
+
+        Maps ECDF values u ∈ [0, 1] back to original data space using nearest quantile:
+
+        **side='right':**
+            idx = ⌊u × n⌋ - 1  (maps u → closest lower-ranked value)
+            x̂ = X_sorted[clip(idx, 0, n-1)]
+
+        **side='left':**
+            idx = ⌊u × n⌋  (maps u → value at that rank)
+            x̂ = X_sorted[clip(idx, 0, n-1)]
+
+        **Clipping note:**
+        Values are clipped to [0, n-1] to handle boundary cases:
+        - u=0 (left boundary) → x̂ = X_sorted[0] (minimum)
+        - u=1 (right boundary) → x̂ = X_sorted[n-1] (maximum)
+
+        Args:
+            data: 2D array of ECDF values
+            side: Optional override of self.side
+
+        Returns:
+            2D array of recovered original-space values
+        """
         if side is not None:
             self._check_side(side)
         else:

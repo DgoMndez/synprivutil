@@ -548,7 +548,31 @@ class QuantileDistanceStrategy(TransformedDistanceStrategy):
 
 
 class ECDFDistanceStrategy(TransformedDistanceStrategy):
-    """Distance strategy that applies an ECDF-based tabletransformer before distance computation."""
+    """ECDF-based distance strategy for privacy metrics.
+
+    This strategy measures distance between rows using per-column ECDF interval gaps
+    estimated from a reference dataset (`original_data`). For each feature `j`=1,...,m, every
+    value is mapped to an ECDF interval:
+
+        I_j(x) = (F_j^-(x), F_j^+(x))
+
+    where:
+        - F_j^-(x) = P(X_j < x),  (left ECDF bound)
+        - F_j^+(x) = P(X_j <= x), (right ECDF bound)
+
+    For simplicity, assume x_j < y_j. Then the per-feature gap is the probability
+    mass in the open interval (x_j, y_j):
+
+        z_j = P(x_j < X_j < y_j) = F_j^-(y_j) - F_j^+(x_j)
+
+    The implementation also handles x_j > y_j (and ties) by using a symmetric
+    formulation internally, so no ordering assumption is required at runtime.
+
+    Row-level distance is then the base metric (default Euclidean) applied to the
+    vector of per-feature gaps:
+
+        d(x, y) = || (z_1, ..., z_m) ||_base_metric
+    """
 
     canonical_name = "ecdf"
 
@@ -560,18 +584,16 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         default_args: dict | None = None,
         **kwargs,
     ):
-        """
-        Build an ECDF-based transformed distance strategy from reference data.
+        """Create an ECDF distance strategy fitted on reference data.
 
         Args:
-            original_data (pd.DataFrame): Reference data used to fit the ECDF representation.
-            base_metric (str | Callable, optional): Metric used to aggregate per-column ECDF
-                interval gaps.
-            ecdf_factory (class, optional): Factory used to create the per-column ECDF
-                transformers.
-            default_args (dict | None, optional): Default keyword arguments reused across
-                distance calls.
-            **kwargs: Extra keyword arguments forwarded to the ECDF transformer factory.
+            original_data (pd.DataFrame): Reference data used to fit one ECDF per column.
+            base_metric (str | Callable, optional): Aggregation metric applied to the
+                per-column interval-gap vector. Defaults to "euclidean".
+            ecdf_factory (class, optional): Factory for per-column ECDF transformers.
+            default_args (dict | None, optional): Default keyword arguments reused in
+                dist/cdist/pdist/nearest-neighbors calls.
+            **kwargs: Extra keyword arguments forwarded to `ecdf_factory`.
         """
         self._tabletransformer = _get_ecdf_tabletransformer(
             original_data=original_data,
@@ -628,7 +650,11 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         )
 
     def _cdist(self, XA, XB, base_metric: str | Callable = None, out=None, **kwargs):
-        """Compute pairwise ECDF distances using the fitted reference distribution."""
+        """Compute pairwise ECDF interval-gap distances.
+
+        Each row pair is compared feature-wise through ECDF left/right bounds fitted
+        on `original_data`, then aggregated with `base_metric`.
+        """
         metric_kwargs = self.metric_args.copy()
         if kwargs:
             metric_kwargs.update(kwargs)
@@ -660,7 +686,12 @@ class ECDFDistanceStrategy(TransformedDistanceStrategy):
         )
 
     def nearest_neighbors(self, X_source, X_target=None, k=1, **kwargs):
-        """Find nearest neighbors under the ECDF interval-based distance."""
+        """Find k nearest neighbors under the ECDF interval-based distance.
+
+        This method computes exact neighbors. It uses a full matrix path when
+        memory permits and otherwise falls back to batched matrix blocks to avoid
+        oversized allocations.
+        """
         metric_kwargs = self.metric_args.copy()
         if kwargs:
             metric_kwargs.update(kwargs)

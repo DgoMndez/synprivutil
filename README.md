@@ -63,8 +63,10 @@ This branch introduces the following relevant additions and improvements:
 - Configurable table-level preprocessing via `TableTransformer` and `ColumnTransformer`:
   - `TableTransformer` is a preprocessor for entire datasets, composed of multiple `ColumnTransformer` instances.
   - `ColumnTransformer` is intended to transform a individual column in the dataset, and revert values back to the original space. Different transformers are implemented for numerical and categorical data, including scaling, encoding, and quantile/ECDF-based transformations.
+    - `QuantileTransformer` for quantile-based transforms, based on sklearn's one.
     - `ECDFTransformer` for empirical CDF-based transforms.
     - `UniformEncoder` for reversible categorical-to-continuous encoding.
+    - `MinMaxScaler`, `OneHotEncoder` and `IdentityTransformer` are some other useful basic transformers implemented.
 - New distance-strategy framework in `privacy_utility_framework.utils.distance`:
   - Strategy factory for `scipy`, `transformed`, `quantile`, `ecdf`, and `custom` distances.
   - Support for callable/custom metrics and strategy-specific defaults.

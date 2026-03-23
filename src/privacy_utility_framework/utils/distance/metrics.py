@@ -104,7 +104,12 @@ def _build_ecdf_references(original_data, ecdf_factory=ECDFTransformer, **kwargs
 
 
 def _ecdf_bounds_from_references(data, columns, references):
-    """Transform each column into its left- and right-ECDF bounds."""
+    """Transform each column into left/right ECDF bounds.
+
+    For each feature value x, this returns:
+        - left  = F^-(x) = P(X < x)
+        - right = F^+(x) = P(X <= x)
+    """
     data = _to_dataframe(data, columns)
     values = data.to_numpy()
 
@@ -129,7 +134,20 @@ def _ecdf_distance_matrix_from_bounds(
     out=None,
     **kwargs,
 ):
-    """Compute ECDF interval distances from precomputed left/right bounds."""
+    """Compute ECDF interval-gap distances from precomputed bounds.
+
+    For simplicity, if x_j < y_j, the per-feature gap is:
+
+        gap_j = P(x_j < X_j < y_j) = F_j^-(y_j) - F_j^+(x_j)
+
+    The implementation also supports x_j > y_j and ties by using the symmetric
+    internal expression:
+
+        gap_j = max(0, max(left_B - right_A, left_A - right_B))
+
+    The row-level distance is computed by applying `base_metric` to the vector
+    of per-feature gaps.
+    """
     nA, n_features = left_A.shape
     nB = left_B.shape[0]
     components = np.empty((nA * nB, n_features), dtype=float)
@@ -471,12 +489,26 @@ def ecdf_cdist(
     out=None,
     **kwargs,
 ):
-    """
-    Calculate distances using ECDF interval gaps per column.
+    """Calculate pairwise distances using ECDF interval probabilities.
 
-    Instead of transforming each value to a single ECDF score, this metric represents each value
-    by its left/right ECDF bounds and measures how far those intervals are from one another across
-    columns.
+    For simplicity, assume x_j < y_j. Then for each feature j:
+
+        g_j(x_j, y_j) = P(x_j < X_j < y_j) = F_j^-(y_j) - F_j^+(x_j)
+
+    with:
+        - F_j^-(t) = P(X_j < t)
+        - F_j^+(t) = P(X_j <= t)
+
+    The implementation also handles x_j > y_j (and ties) using a symmetric
+    internal formula, so users do not need to pre-order values.
+
+    Final distance between rows x and y is the base metric (default Euclidean)
+    over the per-feature gap vector:
+
+        d(x, y) = || (g_1, ..., g_m) ||_base_metric
+
+    Unlike plain quantile distance, this formulation keeps both left and right
+    ECDF sides, which makes tie behavior explicit and order-independent.
 
     Parameters
     ----------
@@ -499,7 +531,7 @@ def ecdf_cdist(
     Returns
     -------
     ndarray
-        Pairwise ECDF distances between rows of ``XA`` and ``XB``.
+        Pairwise ECDF interval-gap distances between rows of ``XA`` and ``XB``.
     """
     if original_data is None:
         if isinstance(XA, pd.DataFrame):
