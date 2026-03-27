@@ -7,29 +7,39 @@ from importlib.util import find_spec
 from typing import TYPE_CHECKING
 
 from .core import (
-    BaseModel,
-    GaussianMixtureModel,
-    RandomModel,
+    BaseModel as BaseModel,
+)
+from .core import (
+    GaussianMixtureModel as GaussianMixtureModel,
+)
+from .core import (
+    RandomModel as RandomModel,
 )
 
 if TYPE_CHECKING:
     from .sdv import (
-        CopulaGANModel,
-        CTGANModel,
-        GaussianCopulaModel,
-        TVAEModel,
+        CopulaGANModel as CopulaGANModel,
+    )
+    from .sdv import (
+        CTGANModel as CTGANModel,
+    )
+    from .sdv import (
+        GaussianCopulaModel as GaussianCopulaModel,
+    )
+    from .sdv import (
+        TVAEModel as TVAEModel,
     )
 
 _CORE_EXPORTS = [
-    BaseModel,
-    GaussianMixtureModel,
-    RandomModel,
+    "BaseModel",
+    "GaussianMixtureModel",
+    "RandomModel",
 ]
 _SDV_EXPORTS = [
-    CTGANModel,
-    CopulaGANModel,
-    GaussianCopulaModel,
-    TVAEModel,
+    "CTGANModel",
+    "CopulaGANModel",
+    "GaussianCopulaModel",
+    "TVAEModel",
 ]
 
 __all__ = list(_CORE_EXPORTS)
