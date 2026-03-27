@@ -177,4 +177,6 @@ cython_debug/
 .vscode
 
 # External resources
-# ...
+# Downloaded cybersecurity datasets
+datasets/original/cybersecurity/*.csv
+datasets/original/cybersecurity/*.zip

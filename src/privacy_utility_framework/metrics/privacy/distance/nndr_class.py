@@ -17,6 +17,8 @@ class NNDRCalculator(DistancePrivacyMetricCalculator):
         preprocess: bool = False,
         preprocessor: TableTransformer | None = None,
         distance_strategy: str | DistanceStrategy = "euclidean",
+        nn_samples: int = 0,
+        nn_random_state: int = None,
         **kwargs,
     ):
         """
@@ -45,6 +47,8 @@ class NNDRCalculator(DistancePrivacyMetricCalculator):
             preprocessor=preprocessor,
             **kwargs,
         )
+        self.nn_samples = nn_samples
+        self.nn_random_state = nn_random_state
 
     def evaluate(self) -> float:
         """
@@ -58,6 +62,10 @@ class NNDRCalculator(DistancePrivacyMetricCalculator):
         # Use transformed data when available; otherwise compare the user-provided data directly.
         original = self._get_comparison_data(self.original)
         synthetic = self._get_comparison_data(self.synthetic)
+
+        if self.nn_samples > 0 and len(synthetic) > self.nn_samples:
+            # Sample synthetic data
+            synthetic = synthetic.sample(n=self.nn_samples, random_state=self.nn_random_state)
 
         # Compute distances from each synthetic record to all original records
         distances, indices = self.distance_strategy.nearest_neighbors(synthetic, original, k=2)

@@ -6,11 +6,10 @@ This project provides a python library for generating synthetic datasets and eva
 
 ## Prerequisites
 
-The python version 3.10 was used to develop this framework. You can check python dependencies at [pyproject.toml](./pyproject.toml). For the following packages, these versions were used:
+The python version 3.10 was used to develop this framework. You can check python dependencies at [pyproject.toml](./pyproject.toml). For the following core packages, these versions were used:
 
 - Numpy version: 1.26.4
 - Pandas version: 2.2.2
-- SDV version: 1.15.0
 - Scikit-learn version: 1.5.1
 - Seaborn version: 0.13.2
 - Matplotlib version: 3.9.2
@@ -19,13 +18,51 @@ The python version 3.10 was used to develop this framework. You can check python
 - Dython version: 0.7.8
 - POT version: 0.9.4
 
+The SDV-based synthesizers are optional and require:
+
+- SDV version: 1.15.0
+
 ## Installation
 
-To install this python package, we recommend using a virtual environment, such as `venv` or `conda`, to avoid conflicts with other packages. Once you have set up your virtual environment, you can install the package using pip by running this command from the project directory:
+To install this python package, we recommend using a virtual environment, such as `venv` or `conda`, to avoid conflicts with other packages.
+
+For the lightweight core install, which includes:
+
+- privacy metrics
+- utility metrics
+- dataset preprocessing and transformation
+- `GaussianMixtureModel`
+- `RandomModel`
+
+run this command from the project directory:
 
 ```bash
 pip install .
 ```
+
+If you need the SDV-backed synthesizers, install the optional `sdv` extra:
+
+```bash
+pip install .[sdv]
+```
+
+If you also want the optional cybersecurity datasets downloaded into
+`datasets/original/cybersecurity/`, install the downloader extra:
+
+```bash
+pip install -e .[cyberdata]
+privacy-framework-install-cyberdata
+```
+
+Kaggle-backed downloads require Kaggle credentials via `~/.kaggle/kaggle.json` or the
+`KAGGLE_USERNAME` and `KAGGLE_KEY` environment variables.
+
+`pip install -e .[cyberdata]` intentionally does not auto-download datasets as a hidden
+post-install side effect. `pip` extras can declare downloader dependencies, but they do
+not provide a reliable, standard post-install hook for editable installs.
+For `UNSW_NB15_training-set.csv`, the installer keeps the official UNSW page as the
+source reference but uses a public mirror for the actual file download because the UNSW
+landing page does not expose a stable direct CSV URL.
 
 If you want to install the package in editable mode for development, use:
 
@@ -33,9 +70,17 @@ If you want to install the package in editable mode for development, use:
 pip install -e .[dev]
 ```
 
+If you want everything optional in one step (SDV, cyberdata downloader deps, and dev tooling), use:
+
+```bash
+pip install -e .[all]
+```
+
 ## Content
 
 - `datasets`: in this folder, the original and synthetic datasets can be found. The following original datasets were used: [Diabetes](https://www.kaggle.com/datasets/akshaydattatraykhare/diabetes-dataset), [Cardio](https://www.kaggle.com/datasets/sulianova/cardiovascular-disease-dataset) and [Insurance](https://www.kaggle.com/datasets/mirichoi0218/insurance).
+  The cybersecurity datasets are intended to be downloaded locally with
+  `privacy-framework-install-cyberdata` rather than committed to git.
 - `examples`:
   - `dataset_transform_normalization.py`: Example of how to transform and normalize a dataset.
   - `plots.py`: Some plot functions that show how plots can be generated.
@@ -50,7 +95,9 @@ pip install -e .[dev]
     - `dataset`: includes the implementation of the `Dataset` object used across the code, the `TableTransformer` class for preprocessing and `ColumnTransformer` classes for transforming each feature.
     - `metrics`: includes all privacy and utility metrics.
     - `plots`: includes the code for the available plots.
-    - `synthesizers`: includes the implementation of all synthetic data generation models.
+    - `synthesizers`: includes the implementation of the synthetic data generation models.
+      - `core`: lightweight synthesizers that do not depend on SDV, including `GaussianMixtureModel` and `RandomModel`.
+      - `sdv`: optional SDV-backed synthesizers, including `GaussianCopulaModel`, `CTGANModel`, `CopulaGANModel`, and `TVAEModel`.
     - `utils`: utility functions, including dynamic_train_test_split and:
       - `distance`: distance metrics and `DistanceStrategy` classes for calculating them between original and synthetic datasets.
 - `synthetic_models`: includes the saved fitted models.
@@ -78,15 +125,15 @@ This branch introduces the following relevant additions and improvements:
 
 ## Example Usage
 
-Below is an example of how to generate synthetic data using the `GaussianMixtureModel`.
+Below is an example of how to generate synthetic data using the core `GaussianMixtureModel`.
 
 ```python
+import pandas as pd
+
+from privacy_utility_framework.synthesizers import GaussianMixtureModel
+
 # Load original dataset
 original_data = pd.read_csv('./examples/insurance_datasets/train/insurance.csv')
-
-# Create metadata for the dataset
-metadata = SingleTableMetadata()
-metadata.detect_from_dataframe(original_data)
 
 # Initialize the Gaussian Mixture Model with a max of 10 components
 gmm_model = GaussianMixtureModel(max_components=10)
@@ -100,6 +147,18 @@ synthetic_data = gmm_model.sample(len(original_data))
 gmm_model.save_sample("gmm_sample.csv", len(original_data))
 
 print("Synthetic data generated and saved to gmm_sample.csv.")
+```
+
+The SDV-backed synthesizers remain available as optional imports after installing `.[sdv]`:
+
+```python
+from sdv.metadata import SingleTableMetadata
+
+from privacy_utility_framework.synthesizers import CTGANModel
+
+metadata = SingleTableMetadata()
+metadata.detect_from_dataframe(original_data)
+ctgan_model = CTGANModel(metadata)
 ```
 
 Here is an example of how to use the `PrivacyMetricManager` to evaluate privacy metrics between original and synthetic datasets.
