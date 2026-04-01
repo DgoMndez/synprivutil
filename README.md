@@ -4,6 +4,10 @@
 
 This project provides a python library for generating synthetic datasets and evaluating their privacy and utility. It includes tools for creating synthetic data, performing various privacy and utility analyses, and visualizing results through plots. The framework is designed to help researchers and developers assess the balance between data utility and privacy in synthetic datasets.
 
+The installation is intentionally split into a minimal default base and optional extras. The
+default install is mainly the preprocessing foundation of the project, while the main project
+functionality lives in the existing `metrics`, `plots`, and `synthesizers` subpackages.
+
 ## Prerequisites
 
 The python version 3.10 was used to develop this framework. You can check python dependencies at [pyproject.toml](./pyproject.toml). For the following core packages, these versions were used:
@@ -26,13 +30,20 @@ The SDV-based synthesizers are optional and require:
 
 To install this python package, we recommend using a virtual environment, such as `venv` or `conda`, to avoid conflicts with other packages.
 
-For the lightweight core install, which includes:
+By default, `pip install .` gives you only the lightweight base installation. This is
+intentionally a minimal install centered on the preprocessing foundation of the project, not the
+full privacy/utility evaluation stack.
 
-- privacy metrics
-- utility metrics
-- dataset preprocessing and transformation
-- `GaussianMixtureModel`
-- `RandomModel`
+The default install includes:
+
+- the `dataset` subpackage for preprocessing and transformation
+- the `utils` subpackage and distance strategy helpers
+
+In other words, the default install is useful for basic preprocessing workflows, but the main
+project functionality is provided by:
+
+- `metrics` and `plots` for privacy and utility evaluation
+- `synthesizers` for synthetic data generation
 
 run this command from the project directory:
 
@@ -40,7 +51,23 @@ run this command from the project directory:
 pip install .
 ```
 
-If you need the SDV-backed synthesizers, install the optional `sdv` extra:
+If you want the evaluation functionality of the project, install the optional `evaluation`
+extra. This enables the `metrics` and `plots` subpackages:
+
+```bash
+pip install .[evaluation]
+```
+
+If you want an explicit generation installation option, you can use the optional
+`generation` extra:
+
+```bash
+pip install .[generation]
+```
+
+This option is intended for generation-focused workflows.
+
+If you want the SDV-backed models inside the existing `synthesizers` subpackage, install:
 
 ```bash
 pip install .[sdv]
@@ -70,7 +97,8 @@ If you want to install the package in editable mode for development, use:
 pip install -e .[dev]
 ```
 
-If you want everything optional in one step (SDV, cyberdata downloader deps, and dev tooling), use:
+If you want everything optional in one step (evaluation, generation, cyberdata downloader deps,
+and dev tooling), use:
 
 ```bash
 pip install -e .[all]
@@ -93,8 +121,8 @@ pip install -e .[all]
 - `src`: includes the framework code.
   - `privacy_utility_framework`:
     - `dataset`: includes the implementation of the `Dataset` object used across the code, the `TableTransformer` class for preprocessing and `ColumnTransformer` classes for transforming each feature.
-    - `metrics`: includes all privacy and utility metrics.
-    - `plots`: includes the code for the available plots.
+    - `metrics`: includes the main privacy and utility evaluation functionality of the project.
+    - `plots`: includes the plotting helpers used with the evaluation workflows.
     - `synthesizers`: includes the implementation of the synthetic data generation models.
       - `core`: lightweight synthesizers that do not depend on SDV, including `GaussianMixtureModel` and `RandomModel`.
       - `sdv`: optional SDV-backed synthesizers, including `GaussianCopulaModel`, `CTGANModel`, `CopulaGANModel`, and `TVAEModel`.
@@ -125,7 +153,8 @@ This branch introduces the following relevant additions and improvements:
 
 ## Example Usage
 
-Below is an example of how to generate synthetic data using the core `GaussianMixtureModel`.
+Below is an example of how to generate synthetic data using the lightweight
+`GaussianMixtureModel`.
 
 ```python
 import pandas as pd

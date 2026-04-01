@@ -10,38 +10,54 @@ description = "Privacy-utility framework from synprivutil"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 dependencies = [
-    "anonymeter>=1.0.0",
-    "dython>=0.7.8",
     "humanize",
-    "matplotlib>=3.9.2",
     "numpy>=1.26.4",
     "pandas>=2.2.2",
-    "POT>=0.9.4",
     "scikit-learn>=1.5.1",
     "scipy>=1.13.0",
-    "seaborn>=0.13",
-    "tqdm",
 ]
 
 [project.optional-dependencies]
+evaluation = [
+    "anonymeter>=1.0.0",
+    "dython>=0.7.8",
+    "matplotlib>=3.9.2",
+    "POT>=0.9.4",
+    "seaborn>=0.13",
+    "tqdm",
+]
+generation = [
+]
 cyberdata = [
     "kaggle>=1.6.17",
 ]
+# Reserved for a future packaging split of the generation stack.
+# Today the lightweight synthesizers still ship in the base distribution,
+# even though they conceptually belong to the generation layer.
+# Backwards-compatible extra for SDV-backed synthesizers.
 sdv = [
     "sdv==1.15.0",
 ]
 dev = [
     "ipykernel",
+    "notebook",
     "pytest",
     "ruff",
-    "sdv==1.15.0",
-    ]
+]
 all = [
+    "anonymeter>=1.0.0",
+    "dython>=0.7.8",
     "ipykernel",
+    "nbconvert",
     "kaggle>=1.6.17",
+    "matplotlib>=3.9.2",
+    "notebook",
+    "POT>=0.9.4",
     "pytest",
     "ruff",
+    "seaborn>=0.13",
     "sdv==1.15.0",
+    "tqdm",
 ]
 
 [project.scripts]
