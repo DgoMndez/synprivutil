@@ -107,22 +107,39 @@ class GaussianMixtureModel(BaseModel):
     Performs data transformation and fitting with optional selection of optimal components.
     """
 
-    def __init__(self, max_components: int = 10):
+    def __init__(
+        self,
+        max_components: int = 10,
+        n_components: int | None = None,
+        max_iter: int = 100,
+    ):
         """
-        Initializes GaussianMixtureModel with a maximum number of components to test for GMM.
+        Initializes GaussianMixtureModel.
 
         Args:
-            max_components (int): The maximum number of components to consider.
+            max_components (int): The maximum number of components to consider when selecting
+                the mixture order automatically.
+            n_components (int | None): Fixed number of components to use. When provided, the
+                automatic BIC search is skipped.
+            max_iter (int): Maximum EM iterations for each GMM fit.
         """
+        if max_components < 1:
+            raise ValueError("'max_components' must be at least 1.")
+        if n_components is not None and n_components < 1:
+            raise ValueError("'n_components' must be at least 1.")
+        if max_iter < 1:
+            raise ValueError("'max_iter' must be at least 1.")
         super().__init__(None)
         self.transformed_data = None
         self.transformer = None
         self.max_components = max_components
+        self.n_components = n_components
+        self.max_iter = max_iter
         self.model = None
 
     def fit(self, data: pd.DataFrame, random_state: int = 42) -> None:
         """
-        Transforms data, selects optimal components, and fits the GMM.
+        Transforms data, resolves the component count, and fits the GMM.
 
         Args:
             data (pd.DataFrame): Input data for model fitting.
@@ -133,9 +150,19 @@ class GaussianMixtureModel(BaseModel):
         dataset.transform()
         self.transformed_data = dataset.transformed_data
         self.transformer = dataset.tabletransformer
-        optimal_n_components = self._select_n_components(self.transformed_data, random_state)
-        self.model = GaussianMixture(n_components=optimal_n_components, random_state=random_state)
+        resolved_n_components = self._resolve_n_components(self.transformed_data, random_state)
+        self.model = GaussianMixture(
+            n_components=resolved_n_components,
+            random_state=random_state,
+            max_iter=self.max_iter,
+        )
         self.model.fit(self.transformed_data)
+
+    def _resolve_n_components(self, data: pd.DataFrame, random_state: int) -> int:
+        """Resolve the number of mixture components to train."""
+        if self.n_components is not None:
+            return min(self.n_components, len(data))
+        return self._select_n_components(data, random_state)
 
     def sample(self, num_samples: int = 200) -> pd.DataFrame:
         """
@@ -177,7 +204,11 @@ class GaussianMixtureModel(BaseModel):
         n_components_range = range(1, self.max_components + 1)
 
         for n in n_components_range:
-            gmm = GaussianMixture(n_components=n, random_state=random_state)
+            gmm = GaussianMixture(
+                n_components=n,
+                random_state=random_state,
+                max_iter=self.max_iter,
+            )
             gmm.fit(data)
             bics.append(gmm.bic(data))
 
