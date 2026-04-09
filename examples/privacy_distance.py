@@ -15,7 +15,6 @@ from privacy_utility_framework.dataset.dataset import Dataset
 from privacy_utility_framework.metrics.privacy import PrivacyMetricManager
 from privacy_utility_framework.metrics.privacy.distance import (
     AdversarialAccuracyCalculator,
-    AdversarialAccuracyCalculator_NN,
     DCRCalculator,
     DisclosureCalculator,
     NNDRCalculator,
@@ -92,6 +91,7 @@ def nnaa_example():
                     original_data,
                     synthetic_data,
                     preprocess=True,
+                    backend="brute",
                 )
                 nnaa1 = calculator_cdist.evaluate()
                 t1 = time.time()
@@ -101,10 +101,11 @@ def nnaa_example():
                 print(f"Error calculating NNAA with CDIST for {orig, syn}: {e}")
 
             print(f"~~~~~~Adversarial Accuracy NN~~~~~~ {orig, syn}")
-            calculator_nn = AdversarialAccuracyCalculator_NN(
+            calculator_nn = AdversarialAccuracyCalculator(
                 original_data,
                 synthetic_data,
                 preprocess=True,
+                backend="nn",
             )
             nnaa2 = calculator_nn.evaluate()
             print(nnaa2)
@@ -171,6 +172,7 @@ def privacy_metric_manager_example():
             original_name=original_name,
             synthetic_name=synthetic_name,
             preprocess=True,
+            backend="auto",
         ),
     ]
     p.add_metric(metric_list)
@@ -231,15 +233,17 @@ def privacy_metric_manager_quantile_example():
                     original_name=original_name,
                     synthetic_name=synthetic_name,
                     preprocess=True,
+                    backend="brute",
                     distance_strategy="quantile",
                     **quantile_metric_args,
                 ),
-                AdversarialAccuracyCalculator_NN(
+                AdversarialAccuracyCalculator(
                     original_data,
                     synthetic_data,
                     original_name=original_name,
                     synthetic_name=synthetic_name,
                     preprocess=True,
+                    backend="nn",
                     distance_strategy="quantile",
                     **quantile_metric_args,
                 ),
@@ -282,6 +286,7 @@ def privacy_metric_manager_ecdf_example():
                     original_name=original_name,
                     synthetic_name=synthetic_name,
                     preprocess=True,
+                    backend="auto",
                     distance_strategy="ecdf",
                     nn_samples=1000,
                     nn_random_state=RANDOM_STATE,
